@@ -1,0 +1,120 @@
+#include "ActiveAndQLearn.h"
+#include"Utility.h"
+int main()
+{
+	int cells = 30;
+	QTable qTable(30);
+	qTable.newEpisode();
+	//
+	return 0;
+}
+
+void QTable::newEpisode()
+{
+	//set 10% of cells to have cans at random
+	srand(time(NULL));
+	for(int i=0;i<0.1*numberOfCells;i++)
+	{
+		if(!grid[Utility::getRandom(numberOfCells)].isCan)
+		{
+			grid[Utility::getRandom(numberOfCells)].isCan = true;
+		}
+		else
+		{
+			i--;
+		}
+	}
+
+	//set certainity values to cell with a probability distribution
+	setLRCertainity();
+
+	int startCell = 0;
+	int action = getAction(startCell);
+	//int reward = getReward(startCell, action);
+		
+}
+
+int QTable::getAction(int cellNo)
+{
+	//0 - left
+	//1 - right
+	//2  - pickup
+	//3 - ask
+	//vector<pair<action,probability>>
+	vector< pair<int,double> > actionProbVector;
+	double numerator = 0;
+	double denominator=0;
+	for(int i=0;i<4;i++)
+	{
+		numerator = exp(double(exploitRate * episodeNumber * grid[cellNo].qValue[grid[cellNo].certainity][i]));
+		actionProbVector.push_back(make_pair(i,numerator));
+		denominator += numerator; 
+	}
+
+	for(int i=0;i<4;i++)
+	{
+		grid[cellNo].qValue[grid[cellNo].certainity][i] /= denominator; 
+	}
+
+	sort(actionProbVector.begin(),actionProbVector.end(), Utility::mySort);
+	
+	double random = ((double)rand() / RAND_MAX);
+	double total=0;
+	for(int i=0;i<4;i++)
+	{
+		if(random<=actionProbVector[i].second + total)
+		{
+			return actionProbVector[i].first;
+		}
+		else
+		{
+			total +=  actionProbVector[i].second;
+		}
+
+	}
+
+}
+
+void QTable::setLRCertainity()
+{
+	double random= 0;
+	double total=0;
+	for(int i=0;i<numberOfCells;i++)
+	{
+		random = ((double)rand() / RAND_MAX);
+		if(grid[i].isCan)
+		{
+			total = 0;
+			for(int i=9;i>=0;i--)
+			{
+				if(random<=pdLRisCan[i] + total)
+				{
+					grid[i].certainity = i+1;
+					break;
+				}
+				else
+				{
+					total +=  pdLRisCan[i];
+				}
+				
+			}
+		}
+
+		else if(!grid[i].isCan)
+		{
+			total = 0;
+			for(int i=0;i<10;i++)
+			{
+				if(random<=pdLRisCan[i]+total)
+				{
+					grid[i].certainity = i+1;
+					break;
+				}
+				else
+				{
+					total +=pdLRisCan[i];
+				}
+			}
+		}
+	}
+}

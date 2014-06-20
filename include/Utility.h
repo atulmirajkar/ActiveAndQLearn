@@ -4,6 +4,7 @@
 #include<iostream>
 #include<stdlib.h>
 #include<map>
+#include<fstream>
 class Utility{
 public:
 	static int getRandom(int range);

@@ -6,7 +6,7 @@
 #include<math.h>
 #include<algorithm>
 using namespace std;
-//#include<_dbdao.h>
+
 class QState{
 	bool isCan;
 	int certainity;
@@ -40,14 +40,20 @@ class QTable{
 	int episodeNumber;
 	double exploitRate;
 	double stepSize;
+	double learningRate;
+	int numberOfSteps;
 public:
 	QTable(int cells)
 	{
+		numberOfSteps = 0;
+		learningRate=0.2;
 		exploitRate = 0.6;
 		episodeNumber = 1;
 		stepSize = 0.9;
 		numberOfCells = cells;
+		
 		grid = new QState[cells];
+		
 		pdLRisCan[0] = 0;
 		pdLRisCan[1] = 0;
 		pdLRisCan[2] = 0;
@@ -76,6 +82,8 @@ public:
 	void setLRCertainity();
 	int getAction(int startCell);
 	int getReward(int cellNo, int action);
+	int getNextState(int currentCell,int action);
+	void displayQTable();
 };	
 
 #endif

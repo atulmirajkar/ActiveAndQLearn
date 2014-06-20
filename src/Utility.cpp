@@ -7,5 +7,5 @@ int Utility::getRandom(int range)
 
 bool Utility::mySort(std::pair<int,double> prob1,std::pair<int,double> prob2)
 {
-	return prob1.second < prob2.second;
+	return prob1.second > prob2.second;
 }

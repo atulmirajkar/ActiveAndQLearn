@@ -34,6 +34,7 @@ public:
 class QTable{
 
 	QState* grid;
+	int * nextStateCertainity;
 	int numberOfCells;
 	double pdLRisCan[10]; //Prob Distri Logistic Reg returns a prob when there is a can
 	double pdLRisnotCan[10]; 
@@ -42,9 +43,11 @@ class QTable{
 	double stepSize;
 	double learningRate;
 	int numberOfSteps;
+	int T;
 public:
 	QTable(int cells)
 	{
+		T=10;
 		numberOfSteps = 0;
 		learningRate=0.2;
 		exploitRate = 0.6;
@@ -53,7 +56,8 @@ public:
 		numberOfCells = cells;
 		
 		grid = new QState[cells];
-		
+		nextStateCertainity = new int[cells];
+
 		pdLRisCan[0] = 0;
 		pdLRisCan[1] = 0;
 		pdLRisCan[2] = 0;
@@ -84,6 +88,9 @@ public:
 	int getReward(int cellNo, int action);
 	int getNextState(int currentCell,int action);
 	void displayQTable();
+	void clearGrid();
+	void scatterRandomCans();
+	void displayTraversal(int currentState,int action,int nextState);
 };	
 
 #endif

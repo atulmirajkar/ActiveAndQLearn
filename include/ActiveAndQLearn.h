@@ -1,10 +1,23 @@
 #ifndef ATUL_ACTIVE_AND_QLEARN
 #define ATUL_ACTIVE_AND_QLEARN
 #include<iostream>
+#include<fstream>
+#include<string>
 #include<time.h>
 #include<vector>
 #include<math.h>
+#include<map>
+#include<stdlib.h>
 #include<algorithm>
+
+#define CEILING "ceiling"
+#define MINTEMP "minTemp"
+#define MAXTEMP "maxTemp"
+#define LEARNINGRATE "learningRate"
+#define EXPLOITRATE "exploitRate" 
+#define EPISODENUMBER "episodeNumber"
+#define DISCOUNTFACTOR "discountFactor"
+#define NUMBEROFCELLS "numberOfCells"
 using namespace std;
 
 class QState{
@@ -40,23 +53,18 @@ class QTable{
 	double pdLRisnotCan[10]; 
 	int episodeNumber;
 	double exploitRate;
-	double stepSize;
 	double learningRate;
+	double discountFactor;
 	int numberOfSteps;
-	int T;
+	double T;
+	double minTemp;
+	double maxTemp;
+	int ceiling;
 public:
-	QTable(int cells)
+	QTable()
 	{
-		T=10;
-		numberOfSteps = 0;
-		learningRate=0.2;
-		exploitRate = 0.6;
-		episodeNumber = 1;
-		stepSize = 0.9;
-		numberOfCells = cells;
-		
-		grid = new QState[cells];
-		nextStateCertainity = new int[cells];
+		//grid = new QState[cells];
+		//nextStateCertainity = new int[cells];
 
 		pdLRisCan[0] = 0;
 		pdLRisCan[1] = 0;
@@ -79,18 +87,25 @@ public:
 		pdLRisnotCan[7] = 0; 
 		pdLRisnotCan[8] = 0; 
 		pdLRisnotCan[9] = 0; 
-
+		
 	}
+	/* QTable(int cells) */
+	/* { */
+	/* 	T=1; */
+	/* 	numberOfCells = cells; */
+       	/* } */
 
 	void newEpisode();
 	void setLRCertainity();
-	int getAction(int startCell);
-	int getReward(int cellNo, int action);
-	int getNextState(int currentCell,int action);
+	int getAction(int startCell,int currentCertainity);
+	int getReward(int cellNo,int currentCertainity, int action);
+	int getNextState(int currentCell,int currentCertainity,int action);
 	void displayQTable();
 	void clearGrid();
 	void scatterRandomCans();
-	void displayTraversal(int currentState,int action,int nextState);
+	void displayTraversal(int currentState,int currentCertainity, int action,int nextState,int nextStateCertainity);
+	void assignVariableTemp();
+	void readConfig(char * configFilePath);
 };	
 
 #endif

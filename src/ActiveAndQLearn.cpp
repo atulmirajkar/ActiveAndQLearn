@@ -1,3 +1,4 @@
+
 #include "ActiveAndQLearn.h"
 #include"Utility.h"
 
@@ -5,17 +6,86 @@ ofstream myLog;
 
 int main()
 {
-	int cells = 20;
-	QTable qTable(cells);
+	//int cells = 20;
 	myLog.open("bin/log");
+	QTable qTable;
+	try{
+		qTable.readConfig("src/config");
+	}
+	catch(char * str)
+	{
+		cout<<str<<endl;
+		myLog<<str<<endl;
+		myLog.close();
+		return 0;
+	}
+	//QTable qTable(cells);
+
 	qTable.newEpisode();
 	myLog.close();
 	return 0;
 }
 
+void QTable::readConfig(char * configFilePath)
+{
+	vector<string> tokenVector;
+        ifstream config;
+	map<string,string> configMapper;
+	
+	config.open(configFilePath);
+	if(config.is_open())
+	{
+		string line="";
+		while(getline(config,line))
+		{
+			line = Utility::trim(line);
+			Utility::tokenize(line," ",tokenVector);
+			if(tokenVector.size()!=2)
+			{
+				myLog<<"InValid config file<<endl";
+				throw "Invalid config file";
+			}
+				
+			//tempInt = atoi(tokenVector[1].c_str());
+			configMapper[tokenVector[0].c_str()]=tokenVector[1];
+			tokenVector.clear();
+		}
+		
+	}
+        config.close();
+	
+	if(configMapper.find(CEILING)==configMapper.end() || \
+	   configMapper.find(MINTEMP)==configMapper.end() ||	\
+	   configMapper.find(MAXTEMP)==configMapper.end() ||	\
+	   configMapper.find(LEARNINGRATE)==configMapper.end() ||	\
+	   configMapper.find(EXPLOITRATE)==configMapper.end() ||	\
+	   configMapper.find(EPISODENUMBER)==configMapper.end() ||	\
+	   configMapper.find(DISCOUNTFACTOR)==configMapper.end() ||		\
+		configMapper.find(NUMBEROFCELLS)==configMapper.end())
+	{
+		myLog<<"InValid config file<<endl";
+		throw "Invalid config file";
+
+	}
+	
+	ceiling = atoi(configMapper[CEILING].c_str());
+	minTemp = atof(configMapper[MINTEMP].c_str());
+	maxTemp = atof(configMapper[MAXTEMP].c_str());
+	discountFactor = atof(configMapper[DISCOUNTFACTOR].c_str());
+	exploitRate = atof(configMapper[EXPLOITRATE].c_str());
+	episodeNumber = atoi(configMapper[EPISODENUMBER].c_str());
+        learningRate = atof(configMapper[LEARNINGRATE].c_str());
+	numberOfCells = atoi(configMapper[NUMBEROFCELLS].c_str());
+	
+	T = maxTemp;
+	grid = new QState[numberOfCells];
+	nextStateCertainity = new int[numberOfCells];
+}
+
 void QTable::newEpisode()
 {
 	int averageReward = 0;
+	int currentCertainity=0;
 	int tempCurrCertainity = 0;
 	int tempNextCertainity = 0;
 	bool displayTraversalBool = false;
@@ -46,25 +116,30 @@ void QTable::newEpisode()
 		}
 		//restart at cell 0
 		int currentCell = 0;
-	
+		int currentCertainity = grid[0].certainity;
 		while(true)
 		{
-		
-			int action = getAction(currentCell);
-			int reward = getReward(currentCell, action);
+			
+			int action = getAction(currentCell,currentCertainity);
+			int reward = getReward(currentCell,currentCertainity, action);
 			averageReward +=reward;
-			int nextState = getNextState(currentCell,action);
+
+			//assigns reward and also the nextStateCertainity
+			int nextState = getNextState(currentCell,currentCertainity,action);
 			
 			if(displayTraversalBool)
-		        displayTraversal(currentCell,action,nextState);
+			{
+				displayTraversal(currentCell,currentCertainity,action,nextState,nextStateCertainity[nextState]);
+			}
 
-			int nextAction = getAction(nextState);
-			tempCurrCertainity = grid[currentCell].certainity;
-			tempNextCertainity = grid[nextState].certainity;
+			//int nextAction = getAction(nextState);
+			int nextAction = getAction(nextState,nextStateCertainity[nextState]);
+			tempCurrCertainity = currentCertainity;
+			tempNextCertainity = nextStateCertainity[nextState];
 			//check for out of bounds
 			if(currentCell<0 || currentCell>numberOfCells-1 || tempCurrCertainity <1 || tempCurrCertainity>10 ||action<1 || action>4 || nextState<0 || nextState>numberOfCells-1 || tempNextCertainity <1 || tempNextCertainity>10 || nextAction<1 || nextAction>4)
 			{
-				myLog<<"Out of bounds Array";
+				myLog<<"Out of bounds Array"<<endl;
 				//logging
 				myLog<<"Action Returned "<<action-1<<endl;
 				//logging
@@ -82,7 +157,7 @@ void QTable::newEpisode()
 				myLog<<"tempNextCertainity "<<tempNextCertainity<<endl;
 				return;
 			}
-			double tempVal= ((1-stepSize) * grid[currentCell].qValue[tempCurrCertainity-1][action-1]) + (stepSize* (reward+learningRate*(grid[nextState].qValue[tempNextCertainity-1][nextAction-1])));
+			double tempVal= ((1-learningRate) * grid[currentCell].qValue[tempCurrCertainity-1][action-1]) + (learningRate* (reward+discountFactor*(grid[nextState].qValue[tempNextCertainity-1][nextAction-1])));
 	
 			// //logging
 			// myLog<<"Q val assigned "<<tempVal<<endl;
@@ -98,7 +173,7 @@ void QTable::newEpisode()
 		
 
 			currentCell = nextState;
-		
+			currentCertainity = nextStateCertainity[nextState];
 			if(currentCell==numberOfCells-1)
 			{
 				break;
@@ -111,16 +186,23 @@ void QTable::newEpisode()
 		myLog<<"Episode Number "<<episodeNumber<<endl;
 		myLog<<"Number of steps "<<numberOfSteps<<endl;
 		myLog<<"Average Reward "<<averageReward<<endl;
+		myLog<<"Current Temperature "<<T<<endl;
 //logging
 		numberOfSteps = 0;
 		episodeNumber++;
-		
-		if(episodeNumber==3000)
+		//assignVariableTemp();
+		if(episodeNumber==ceiling)
 		{
 			displayTraversalBool = true;
-			this->T=1;
+			myLog<<endl;
+			displayQTable();
+			myLog<<endl;
+			T=minTemp;
+			myLog<<endl<<"temp "<<T<<endl;
+
 		}
-		if(episodeNumber==3001)
+
+		if(episodeNumber==ceiling+1)
 		{
 			//logging
 			for(int i=0;i<numberOfCells;i++)
@@ -131,32 +213,32 @@ void QTable::newEpisode()
 			
 			//logging
 		
-			displayQTable();
+			
 			break;
 		}
 	}//repeat for next episode
 }
 
-void QTable::displayTraversal(int currentState,int action,int nextState)
+void QTable::displayTraversal(int currentState,int currentCertainity, int action,int nextState,int nextStateCertainity)
 {
 
 	if(action == 1)//left
 	{
-		myLog<<"Travelling from state ("<<currentState<<" "<<grid[currentState].certainity<<") taking action left - to state ("<<nextState<<" "<<grid[nextState].certainity<<")"<<endl; 
+		myLog<<"Travelling from state ("<<currentState<<" "<<currentCertainity<<") taking action left - to state ("<<nextState<<" "<<nextStateCertainity<<")"<<endl; 
 	}
 	else if(action==2)//right
 	{
-		myLog<<"Travelling from state ("<<currentState<<" "<<grid[currentState].certainity<<") taking action right - to state ("<<nextState<<" "<<grid[nextState].certainity<<")"<<endl; 
+		myLog<<"Travelling from state ("<<currentState<<" "<<currentCertainity<<") taking action right - to state ("<<nextState<<" "<<nextStateCertainity<<")"<<endl; 
 
 	}
 	else if(action==3)//pickup
 	{
-		myLog<<"Travelling from state ("<<currentState<<" "<<grid[currentState].certainity<<") taking action pickup - to state ("<<nextState<<" "<<grid[nextState].certainity<<")"<<endl; 
+		myLog<<"Travelling from state ("<<currentState<<" "<<currentCertainity<<") taking action pickup - to state ("<<nextState<<" "<<nextStateCertainity<<")"<<endl; 
 
 	}
 	else if(action==4)//ask
 	{
-		myLog<<"Travelling from state ("<<currentState<<" "<<grid[currentState].certainity<<") taking action ask - to state ("<<nextState<<" "<<grid[nextState].certainity<<")"<<endl; 
+		myLog<<"Travelling from state ("<<currentState<<" "<<currentCertainity<<") taking action ask - to state ("<<nextState<<" "<<nextStateCertainity<<")"<<endl; 
 
 	}
 }
@@ -196,20 +278,23 @@ void QTable::clearGrid()
 		
 }
 
-int QTable::getNextState(int currentCell,int action)
+int QTable::getNextState(int currentCell,int currentCertainity,int action)
 {
 	//if going off grid retrun to the same state
 	if(currentCell==0 && action==1)
 	{
+		nextStateCertainity[currentCell] = currentCertainity;
 		return currentCell;
 	}
 	
 	if(action==1)//if left
 	{
+		nextStateCertainity[currentCell-1] = grid[currentCell-1].certainity;
 		return currentCell-1;
 	}
 	else if(action==2)//if right
 	{
+		nextStateCertainity[currentCell+1] = grid[currentCell+1].certainity;
 		return currentCell+1;
 	}
 
@@ -219,44 +304,50 @@ int QTable::getNextState(int currentCell,int action)
 	{
 		if(grid[currentCell].isCan)
 		{
-			grid[currentCell].certainity = 10;
+			//grid[currentCell].certainity = 10;
+			nextStateCertainity[currentCell] =10;
 			return currentCell;
 		}
 		else
 		{
-			grid[currentCell].certainity = 1;
+			//grid[currentCell].certainity = 1;
+			nextStateCertainity[currentCell] =10;
 			return currentCell;
 		}
 	}
 }
 
-int QTable::getReward(int cellNo, int action)
+int QTable::getReward(int cellNo,int currentCertainity, int action)
 {
 
 	//reward depending on grid
 	if(cellNo==0 && action==1)
 	{
-		return -15;
+		return -20;
 	}
-	if(cellNo==numberOfCells-1 && action==2)
+	if(cellNo==numberOfCells-2 && action==2)
 	{
-		return 15;
+		return 20;
 	}
 
 	//reward for going left or right
-	if(action==1)//left
-	{
-		return -2;
-	}
-	else if(action==2)//right
-	{
-		return -2;
-	}
+	// if(action==1)//left
+	// {
+	// 	return -2;
+	// }
+	// else if(action==2)//right
+	// {
+	// 	return -2;
+	// }
+	// else
+	// {
+	// 	return -8;
+	// }
 
 	
 
 	//reward depending on certainity
-	int certainityVal = grid[cellNo].certainity;
+	int certainityVal = currentCertainity;
 	
         //certainity of no can high
 	if(certainityVal>=1 && certainityVal<=3)
@@ -269,6 +360,15 @@ int QTable::getReward(int cellNo, int action)
 		{
 			return -5;
 		}
+		if(action==1)//left
+		{
+			return -2;
+		}
+		else if(action==2)//right
+		{
+			return -2;
+		}
+
 
 	}
 	//uncertainity higher
@@ -281,6 +381,14 @@ int QTable::getReward(int cellNo, int action)
 		else if(action==4)//ask
 		{
 			return -3;
+		}
+		if(action==1)//left
+		{
+			return -4;
+		}
+		else if(action==2)//right
+		{
+			return -4;
 		}
 	}
 
@@ -295,21 +403,41 @@ int QTable::getReward(int cellNo, int action)
 		{
 			return -5;
 		}
+		if(action==1)//left
+		{
+			return -2;
+		}
+		else if(action==2)//right
+		{
+			return -2;
+		}
 	}
      
 }
 
+void QTable::assignVariableTemp()
+{
 
+	if(episodeNumber>=ceiling)
+	{
+		T = minTemp; 
+	}
+	else
+	{
+		double e = (double)episodeNumber/ceiling;
+		T= minTemp + (1-e)*(maxTemp - minTemp);
+	}
+}
 
-int QTable::getAction(int cellNo)
+int QTable::getAction(int cellNo,int currentCertainity)
 {
 	//0 - left
 	//1 - right
 	//2  - pickup
 	//3 - ask
 	//vector<pair<action,probability>>
-	vector< pair<int,double> > actionProbVector;
-	vector< pair<int,double> > qValueVector;
+	vector< pair<int,long double> > actionProbVector;
+	vector< pair<int,long double> > qValueVector;
 	double numerator = 0;
 	double denominator=0;
 	int tempCertainity =0;
@@ -317,7 +445,7 @@ int QTable::getAction(int cellNo)
 	//sort existing q -values for given cell and certainity
 	for(int i=0;i<4;i++)
 	{
-		tempCertainity = grid[cellNo].certainity;
+		tempCertainity = currentCertainity; 
 		qValueVector.push_back(make_pair(i,grid[cellNo].qValue[tempCertainity-1][i]));
 	}
 	
@@ -332,10 +460,16 @@ int QTable::getAction(int cellNo)
 	// myLog<<endl;
 	//logging
 
+	// //logging
+	// myLog<<"Current Temp "<<T<<endl;
+	// //logging
 	for(int i=0;i<qValueVector.size();i++)
 	{ 
 		tempNumerator = double(qValueVector[i].second - qValueVector[0].second)/double(this->T);
+		//tempNumerator = double(qValueVector[i].second)/double(this->T);
+
 		numerator = exp(tempNumerator);
+		
 	       	actionProbVector.push_back(make_pair(qValueVector[i].first,numerator));
 		denominator += numerator; 
 	}

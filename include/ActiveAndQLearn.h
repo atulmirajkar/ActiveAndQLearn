@@ -18,6 +18,7 @@
 #define EPISODENUMBER "episodeNumber"
 #define DISCOUNTFACTOR "discountFactor"
 #define NUMBEROFCELLS "numberOfCells"
+#define USEVARIABLETEMP "useVariableTemp"
 using namespace std;
 
 class QState{
@@ -60,12 +61,13 @@ class QTable{
 	double minTemp;
 	double maxTemp;
 	int ceiling;
+	bool useVariableTempBool;
 public:
 	QTable()
 	{
 		//grid = new QState[cells];
 		//nextStateCertainity = new int[cells];
-
+		useVariableTempBool = false;
 		pdLRisCan[0] = 0;
 		pdLRisCan[1] = 0;
 		pdLRisCan[2] = 0;

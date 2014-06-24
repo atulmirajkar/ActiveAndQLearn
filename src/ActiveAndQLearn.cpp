@@ -1,4 +1,3 @@
-
 #include "ActiveAndQLearn.h"
 #include"Utility.h"
 
@@ -61,7 +60,8 @@ void QTable::readConfig(char * configFilePath)
 	   configMapper.find(EXPLOITRATE)==configMapper.end() ||	\
 	   configMapper.find(EPISODENUMBER)==configMapper.end() ||	\
 	   configMapper.find(DISCOUNTFACTOR)==configMapper.end() ||		\
-		configMapper.find(NUMBEROFCELLS)==configMapper.end())
+		configMapper.find(NUMBEROFCELLS)==configMapper.end() ||
+		configMapper.find(USEVARIABLETEMP)==configMapper.end())
 	{
 		myLog<<"InValid config file<<endl";
 		throw "Invalid config file";
@@ -76,10 +76,11 @@ void QTable::readConfig(char * configFilePath)
 	episodeNumber = atoi(configMapper[EPISODENUMBER].c_str());
         learningRate = atof(configMapper[LEARNINGRATE].c_str());
 	numberOfCells = atoi(configMapper[NUMBEROFCELLS].c_str());
-	
+	useVariableTempBool = atoi(configMapper[USEVARIABLETEMP].c_str());
 	T = maxTemp;
 	grid = new QState[numberOfCells];
 	nextStateCertainity = new int[numberOfCells];
+
 }
 
 void QTable::newEpisode()
@@ -183,14 +184,17 @@ void QTable::newEpisode()
 			numberOfSteps++;
 		}//end episode
 		//logging
-		myLog<<"Episode Number "<<episodeNumber<<endl;
-		myLog<<"Number of steps "<<numberOfSteps<<endl;
-		myLog<<"Average Reward "<<averageReward<<endl;
-		myLog<<"Current Temperature "<<T<<endl;
+		myLog<<episodeNumber<<"\t"<<numberOfSteps<<"\t"<<averageReward<<"\t"<<T<<endl;
+		// myLog<<"Number of steps "<<numberOfSteps<<endl;
+		// myLog<<"Average Reward "<<averageReward<<endl;
+		// myLog<<"Current Temperature "<<T<<endl;
 //logging
 		numberOfSteps = 0;
 		episodeNumber++;
-		//assignVariableTemp();
+		if(useVariableTempBool)
+		{
+			assignVariableTemp();
+		}
 		if(episodeNumber==ceiling)
 		{
 			displayTraversalBool = true;
@@ -250,7 +254,7 @@ void QTable::scatterRandomCans()
 		tempRandom =Utility::getRandom(numberOfCells); 
 		
 		//logging
-		myLog<<"Random "<<tempRandom<<endl;
+		// myLog<<"Random "<<tempRandom<<endl;
 		//logging
 			
 		if(!grid[tempRandom].isCan)
@@ -297,10 +301,15 @@ int QTable::getNextState(int currentCell,int currentCertainity,int action)
 		nextStateCertainity[currentCell+1] = grid[currentCell+1].certainity;
 		return currentCell+1;
 	}
-
-	//if action is pickup or ask
-	//update certainity level for that cell and return the same cell number
-	else if(action==3 || action==4)
+	
+	//if action is pickup goto certainity of 0
+	else if(action==3)//if pickup
+	{
+		nextStateCertainity[currentCell] =1;
+		return currentCell;
+	}
+	
+	else if(action==4)//if ask
 	{
 		if(grid[currentCell].isCan)
 		{
@@ -311,10 +320,28 @@ int QTable::getNextState(int currentCell,int currentCertainity,int action)
 		else
 		{
 			//grid[currentCell].certainity = 1;
-			nextStateCertainity[currentCell] =10;
+			nextStateCertainity[currentCell] =1;
 			return currentCell;
 		}
+
 	}
+	//if action is pickup or ask
+	//update certainity level for that cell and return the same cell number
+	// else if(action==3 || action==4)
+	// {
+	// 	if(grid[currentCell].isCan)
+	// 	{
+	// 		//grid[currentCell].certainity = 10;
+	// 		nextStateCertainity[currentCell] =10;
+	// 		return currentCell;
+	// 	}
+	// 	else
+	// 	{
+	// 		//grid[currentCell].certainity = 1;
+	// 		nextStateCertainity[currentCell] =10;
+	// 		return currentCell;
+	// 	}
+//}
 }
 
 int QTable::getReward(int cellNo,int currentCertainity, int action)
@@ -380,26 +407,26 @@ int QTable::getReward(int cellNo,int currentCertainity, int action)
 		}
 		else if(action==4)//ask
 		{
-			return -3;
+			return -1;
 		}
 		if(action==1)//left
 		{
-			return -4;
+			return -2;
 		}
 		else if(action==2)//right
 		{
-			return -4;
+			return -2;
 		}
 	}
 
 	//certainity of can being there is high
 	else if(certainityVal>=8 && certainityVal<=10)
 	{
-		if(action==3)
+		if(action==3)//pickup
 		{
-			return -3;
+			return -1;
 		}
-		else if(action==4)
+		else if(action==4)//ask
 		{
 			return -5;
 		}

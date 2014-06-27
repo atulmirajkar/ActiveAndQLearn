@@ -19,6 +19,7 @@
 #define DISCOUNTFACTOR "discountFactor"
 #define NUMBEROFCELLS "numberOfCells"
 #define USEVARIABLETEMP "useVariableTemp"
+#define DISPLAYTRAVERSALBOOL "displayTraversalBool"
 using namespace std;
 
 class QState{
@@ -62,12 +63,14 @@ class QTable{
 	double maxTemp;
 	int ceiling;
 	bool useVariableTempBool;
+	bool displayTraversalBool;
 public:
 	QTable()
 	{
 		//grid = new QState[cells];
 		//nextStateCertainity = new int[cells];
 		useVariableTempBool = false;
+		displayTraversalBool = false;
 		pdLRisCan[0] = 0;
 		pdLRisCan[1] = 0;
 		pdLRisCan[2] = 0;

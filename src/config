@@ -1,9 +1,10 @@
-numberOfCells 30
-ceiling 200000
-minTemp 0.2
-maxTemp 10
+numberOfCells 40
+ceiling 10000
+minTemp 0.02
+maxTemp 1
 learningRate 0.2
 discountFactor 0.9
 exploitRate 0.6
 episodeNumber 1
 useVariableTemp 1
+displayTraversalBool 0

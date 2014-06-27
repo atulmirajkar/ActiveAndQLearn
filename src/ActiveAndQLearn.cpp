@@ -5,7 +5,7 @@ ofstream myLog;
 
 int main()
 {
-	//int cells = 20;
+
 	myLog.open("bin/log");
 	QTable qTable;
 	try{
@@ -18,7 +18,7 @@ int main()
 		myLog.close();
 		return 0;
 	}
-	//QTable qTable(cells);
+
 
 	qTable.newEpisode();
 	myLog.close();
@@ -45,7 +45,7 @@ void QTable::readConfig(char * configFilePath)
 				throw "Invalid config file";
 			}
 				
-			//tempInt = atoi(tokenVector[1].c_str());
+
 			configMapper[tokenVector[0].c_str()]=tokenVector[1];
 			tokenVector.clear();
 		}
@@ -61,7 +61,8 @@ void QTable::readConfig(char * configFilePath)
 	   configMapper.find(EPISODENUMBER)==configMapper.end() ||	\
 	   configMapper.find(DISCOUNTFACTOR)==configMapper.end() ||		\
 		configMapper.find(NUMBEROFCELLS)==configMapper.end() ||
-		configMapper.find(USEVARIABLETEMP)==configMapper.end())
+	   configMapper.find(USEVARIABLETEMP)==configMapper.end() ||	\
+	   configMapper.find(DISPLAYTRAVERSALBOOL)==configMapper.end())
 	{
 		myLog<<"InValid config file<<endl";
 		throw "Invalid config file";
@@ -78,6 +79,8 @@ void QTable::readConfig(char * configFilePath)
 	numberOfCells = atoi(configMapper[NUMBEROFCELLS].c_str());
 	useVariableTempBool = atoi(configMapper[USEVARIABLETEMP].c_str());
 	T = maxTemp;
+	displayTraversalBool = atoi(configMapper[DISPLAYTRAVERSALBOOL].c_str());
+	
 	grid = new QState[numberOfCells];
 	nextStateCertainity = new int[numberOfCells];
 
@@ -86,10 +89,9 @@ void QTable::readConfig(char * configFilePath)
 void QTable::newEpisode()
 {
 	int averageReward = 0;
-	int currentCertainity=0;
 	int tempCurrCertainity = 0;
 	int tempNextCertainity = 0;
-	bool displayTraversalBool = false;
+
 	//set 10% of cells to have cans at random
 	while(true)
 	{
@@ -117,26 +119,33 @@ void QTable::newEpisode()
 		}
 		//restart at cell 0
 		int currentCell = 0;
-		int currentCertainity = grid[0].certainity;
+		int currentCertainity = 0;
 		while(true)
 		{
-			
+			currentCertainity = grid[currentCell].certainity;
 			int action = getAction(currentCell,currentCertainity);
+
+			
 			int reward = getReward(currentCell,currentCertainity, action);
+			
 			averageReward +=reward;
 
 			//assigns reward and also the nextStateCertainity
 			int nextState = getNextState(currentCell,currentCertainity,action);
-			
+		
 			if(displayTraversalBool)
 			{
-				displayTraversal(currentCell,currentCertainity,action,nextState,nextStateCertainity[nextState]);
+				displayTraversal(currentCell,currentCertainity,action,nextState,grid[nextState].certainity);
+	
 			}
 
-			//int nextAction = getAction(nextState);
-			int nextAction = getAction(nextState,nextStateCertainity[nextState]);
-			tempCurrCertainity = currentCertainity;
-			tempNextCertainity = nextStateCertainity[nextState];
+		
+			int nextAction = getAction(nextState,grid[nextState].certainity);
+               
+			//Use currentCertainity as grid[currentCell].certainity may have changed
+           		tempCurrCertainity = currentCertainity;
+			tempNextCertainity = grid[nextState].certainity;
+                        //tempNextCertainity = nextStateCertainity[nextState];
 			//check for out of bounds
 			if(currentCell<0 || currentCell>numberOfCells-1 || tempCurrCertainity <1 || tempCurrCertainity>10 ||action<1 || action>4 || nextState<0 || nextState>numberOfCells-1 || tempNextCertainity <1 || tempNextCertainity>10 || nextAction<1 || nextAction>4)
 			{
@@ -156,6 +165,7 @@ void QTable::newEpisode()
 				myLog<<"current cell "<<currentCell<<endl;
 				myLog<<"tempCurrCertainity "<<tempCurrCertainity<<endl;
 				myLog<<"tempNextCertainity "<<tempNextCertainity<<endl;
+				displayQTable();
 				return;
 			}
 			double tempVal= ((1-learningRate) * grid[currentCell].qValue[tempCurrCertainity-1][action-1]) + (learningRate* (reward+discountFactor*(grid[nextState].qValue[tempNextCertainity-1][nextAction-1])));
@@ -174,7 +184,7 @@ void QTable::newEpisode()
 		
 
 			currentCell = nextState;
-			currentCertainity = nextStateCertainity[nextState];
+                       
 			if(currentCell==numberOfCells-1)
 			{
 				break;
@@ -191,6 +201,10 @@ void QTable::newEpisode()
 //logging
 		numberOfSteps = 0;
 		episodeNumber++;
+		if(displayTraversalBool)
+		{
+			displayQTable();
+		}
 		if(useVariableTempBool)
 		{
 			assignVariableTemp();
@@ -287,25 +301,26 @@ int QTable::getNextState(int currentCell,int currentCertainity,int action)
 	//if going off grid retrun to the same state
 	if(currentCell==0 && action==1)
 	{
-		nextStateCertainity[currentCell] = currentCertainity;
+
 		return currentCell;
 	}
 	
 	if(action==1)//if left
 	{
-		nextStateCertainity[currentCell-1] = grid[currentCell-1].certainity;
+
 		return currentCell-1;
 	}
 	else if(action==2)//if right
 	{
-		nextStateCertainity[currentCell+1] = grid[currentCell+1].certainity;
+
 		return currentCell+1;
 	}
 	
 	//if action is pickup goto certainity of 0
 	else if(action==3)//if pickup
 	{
-		nextStateCertainity[currentCell] =1;
+		grid[currentCell].certainity = 1;
+
 		return currentCell;
 	}
 	
@@ -313,132 +328,128 @@ int QTable::getNextState(int currentCell,int currentCertainity,int action)
 	{
 		if(grid[currentCell].isCan)
 		{
-			//grid[currentCell].certainity = 10;
-			nextStateCertainity[currentCell] =10;
+			grid[currentCell].certainity = 10;
+
 			return currentCell;
 		}
 		else
 		{
-			//grid[currentCell].certainity = 1;
-			nextStateCertainity[currentCell] =1;
+			grid[currentCell].certainity = 1;
+
 			return currentCell;
 		}
 
 	}
-	//if action is pickup or ask
-	//update certainity level for that cell and return the same cell number
-	// else if(action==3 || action==4)
-	// {
-	// 	if(grid[currentCell].isCan)
-	// 	{
-	// 		//grid[currentCell].certainity = 10;
-	// 		nextStateCertainity[currentCell] =10;
-	// 		return currentCell;
-	// 	}
-	// 	else
-	// 	{
-	// 		//grid[currentCell].certainity = 1;
-	// 		nextStateCertainity[currentCell] =10;
-	// 		return currentCell;
-	// 	}
-//}
 }
 
 int QTable::getReward(int cellNo,int currentCertainity, int action)
 {
 
 	//reward depending on grid
-	if(cellNo==0 && action==1)
-	{
-		return -20;
-	}
-	if(cellNo==numberOfCells-2 && action==2)
-	{
-		return 20;
-	}
+	// if(cellNo==0 && action==1)
+	// {
+	// 	return -20;
+	// }
+	// if(cellNo==numberOfCells-2 && action==2)
+	// {
+	// 	return 20;
+	// }
 
 	//reward for going left or right
-	// if(action==1)//left
-	// {
-	// 	return -2;
-	// }
-	// else if(action==2)//right
-	// {
-	// 	return -2;
-	// }
-	// else
-	// {
-	// 	return -8;
-	// }
+	if(action==1)//left
+	{
+		return -2;
+	}
+	else if(action==2)//right
+	{
+		return -2;
+	}
+	else if(action==3)//pickup
+	{
+		if(grid[cellNo].isCan)
+		{
+			grid[cellNo].isCan = false;
+			
+			return 15;
+		}
+		else
+		{
+			return -15;
+		}
+	}
+	else if(action==4)//ask
+	{
+		return -4;
+	}
 
 	
 
 	//reward depending on certainity
-	int certainityVal = currentCertainity;
+	// int certainityVal = currentCertainity;
 	
-        //certainity of no can high
-	if(certainityVal>=1 && certainityVal<=3)
-	{
-	        if(action==3)//pickup
-		{
-			return -7;
-		}
-		else if(action==4)//ask
-		{
-			return -5;
-		}
-		if(action==1)//left
-		{
-			return -2;
-		}
-		else if(action==2)//right
-		{
-			return -2;
-		}
+        // //certainity of no can high
+	// if(certainityVal>=1 && certainityVal<=3)
+	// {
+	//         if(action==3)//pickup
+	// 	{
+	// 		return -7;
+	// 	}
+	// 	else if(action==4)//ask
+	// 	{
+	// 		return -5;
+	// 	}
+	// 	if(action==1)//left
+	// 	{
+	// 		return -2;
+	// 	}
+	// 	else if(action==2)//right
+	// 	{
+	// 		return -2;
+	// 	}
 
 
-	}
-	//uncertainity higher
-	else if(certainityVal>=4 && certainityVal<=7)
-	{
-	        if(action==3)//pickup
-		{
-			return -5;
-		}
-		else if(action==4)//ask
-		{
-			return -1;
-		}
-		if(action==1)//left
-		{
-			return -2;
-		}
-		else if(action==2)//right
-		{
-			return -2;
-		}
-	}
+	// }
+	// //uncertainity higher
+	// else if(certainityVal>=4 && certainityVal<=7)
+	// {
+	//         if(action==3)//pickup
+	// 	{
+	// 		return -5;
+	// 	}
+	// 	else if(action==4)//ask
+	// 	{
+	// 		return -1;
+	// 	}
+	// 	if(action==1)//left
+	// 	{
+	// 		return -2;
+	// 	}
+	// 	else if(action==2)//right
+	// 	{
+	// 		return -2;
+	// 	}
+	// }
 
-	//certainity of can being there is high
-	else if(certainityVal>=8 && certainityVal<=10)
-	{
-		if(action==3)//pickup
-		{
-			return -1;
-		}
-		else if(action==4)//ask
-		{
-			return -5;
-		}
-		if(action==1)//left
-		{
-			return -2;
-		}
-		else if(action==2)//right
-		{
-			return -2;
-		}
-	}
+	// //certainity of can being there is high
+	// else if(certainityVal>=8 && certainityVal<=10)
+	// {
+	// 	if(action==3)//pickup
+	// 	{
+	// 		return -1;
+	// 	}
+	// 	else if(action==4)//ask
+	// 	{
+	// 		return -5;
+	// 	}
+	// 	if(action==1)//left
+	// 	{
+	// 		return -2;
+	// 	}
+	// 	else if(action==2)//right
+	// 	{
+	// 		return -2;
+	// 	}
+	// }
      
 }
 
@@ -494,7 +505,10 @@ int QTable::getAction(int cellNo,int currentCertainity)
 	{ 
 		tempNumerator = double(qValueVector[i].second - qValueVector[0].second)/double(this->T);
 		//tempNumerator = double(qValueVector[i].second)/double(this->T);
-
+		if(exp(tempNumerator)>=pow(2,sizeof(double)*2)-1)
+		{
+			return -1;
+		}
 		numerator = exp(tempNumerator);
 		
 	       	actionProbVector.push_back(make_pair(qValueVector[i].first,numerator));
@@ -615,7 +629,7 @@ void QTable::displayQTable()
 			for(int k=0;k<4;k++)
 			{
 				//myLog<<grid[i].qValue[grid[i].certainity][k]<<"\t";
-				myLog<<grid[i].qValue[j][k]<<"\t";
+				myLog<<grid[i].qValue[j][k]<<"     ";
 			}
 			myLog<<endl;
 		}

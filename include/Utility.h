@@ -16,6 +16,7 @@ public:
 	static string  trim(string &s);
 	static bool isStringNumber(const std::string inputString);
 	static void toUpper(string & inputString);
+	static int toLittleEndian(int data);
 };
 
 #endif

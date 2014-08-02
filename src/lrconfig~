@@ -1,0 +1,9 @@
+trainLabelFile:/home/atul/UMBC/thesis/data/train-labels.idx1-ubyte
+trainImageFile:/home/atul/UMBC/thesis/data/train-images.idx3-ubyte
+testLabelFile:/home/atul/UMBC/thesis/data/t10k-labels.idx1-ubyte
+testImageFile:/home/atul/UMBC/thesis/data/t10k-images.idx3-ubyte
+trainingSetFile:/home/atul/UMBC/thesis/data/trainSetFile
+testSetFile:/home/atul/UMBC/thesis/data/testSetFile
+modelFile:/home/atul/UMBC/thesis/data/modelFile
+trainOptions:-s 6 -v 5 -e 0.001 
+testOptions:-b 1

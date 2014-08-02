@@ -45,3 +45,13 @@ void Utility::tokenize(string str, string delimiter, vector<string> & instance)
 	}
 	instance.push_back(str);
 }
+
+int Utility::toLittleEndian(int data)
+{
+	unsigned char c1,c2,c3,c4;
+	c1 = (data >> 24) & 255;
+	c2 = (data >> 16) & 255;
+	c3 = (data >> 8 ) & 255;
+	c4 = (data) & 255;
+	return (int)(((int)c4 << 24) + ((int)c3 << 16) + ((int)c2 << 8) + ((int)c1));
+}

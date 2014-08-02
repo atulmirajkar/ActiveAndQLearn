@@ -1,6 +1,10 @@
+
+
+
 #include "ActiveAndQLearn.h"
 #include"Utility.h"
-
+#include "Test.h"
+#include "LR.h"
 ofstream myLog;
 
 int main()
@@ -10,6 +14,17 @@ int main()
 	QTable qTable;
 	try{
 		qTable.readConfig("src/config");
+	
+	//Test::testAnneal(qTable);
+	
+	Test::isLittleBigEndian();
+	LRWrapper lr(qTable.lrConfigPath);
+	lr.readLRConfig();
+	//lr.readMNISTData();
+	//lr.LRTrain();
+	lr.LRTest();
+	//qTable.newEpisode();
+	myLog.close();
 	}
 	catch(char * str)
 	{
@@ -19,9 +34,6 @@ int main()
 		return 0;
 	}
 
-
-	qTable.newEpisode();
-	myLog.close();
 	return 0;
 }
 
@@ -60,9 +72,11 @@ void QTable::readConfig(char * configFilePath)
 	   configMapper.find(EXPLOITRATE)==configMapper.end() ||	\
 	   configMapper.find(EPISODENUMBER)==configMapper.end() ||	\
 	   configMapper.find(DISCOUNTFACTOR)==configMapper.end() ||		\
-		configMapper.find(NUMBEROFCELLS)==configMapper.end() ||
+	   configMapper.find(NUMBEROFCELLS)==configMapper.end() ||
 	   configMapper.find(USEVARIABLETEMP)==configMapper.end() ||	\
-	   configMapper.find(DISPLAYTRAVERSALBOOL)==configMapper.end())
+	   configMapper.find(DISPLAYTRAVERSALBOOL)==configMapper.end() ||	\
+	   configMapper.find(CANDENSITY)==configMapper.end() ||  \
+	   configMapper.find(LRCONFIG)==configMapper.end())
 	{
 		myLog<<"InValid config file<<endl";
 		throw "Invalid config file";
@@ -80,11 +94,97 @@ void QTable::readConfig(char * configFilePath)
 	useVariableTempBool = atoi(configMapper[USEVARIABLETEMP].c_str());
 	T = maxTemp;
 	displayTraversalBool = atoi(configMapper[DISPLAYTRAVERSALBOOL].c_str());
-	
+	canDensity = atof(configMapper[CANDENSITY].c_str());
 	grid = new QState[numberOfCells];
 	nextStateCertainity = new int[numberOfCells];
 
+	min10 =  atof(configMapper[MIN10].c_str());
+	min9 = atof(configMapper[MIN9].c_str());
+	min8 = atof(configMapper[MIN8].c_str());
+	min7 = atof(configMapper[MIN7].c_str());
+	min6 = atof(configMapper[MIN6].c_str());
+	min5  = atof(configMapper[MIN5].c_str());
+	min4 = atof(configMapper[MIN4].c_str());
+
+
+
+	max10  = atof(configMapper[MAX10].c_str());
+	max9 =atof(configMapper[MAX9].c_str());
+	max8 = atof(configMapper[MAX8].c_str());
+	max7 = atof(configMapper[MAX7].c_str());
+	max6  = atof(configMapper[MAX6].c_str());
+	max5  = atof(configMapper[MAX5].c_str());
+	max4 = atof(configMapper[MAX4].c_str());
+
+
+	lrConfigPath = configMapper[LRCONFIG];
+
+	assignPDLRCertainity();
+
 }
+
+
+// void QTable::assignPDLRCertainity(map<string,string> & configMapper)
+// {
+
+// 	pdLRisCan[0] = 0;
+// 	pdLRisCan[1] = 0;
+// 	pdLRisCan[2] = 0;
+// 	pdLRisCan[3] = MIN4;
+// 	pdLRisCan[4] = MIN5;
+// 	pdLRisCan[5] = MIN6;
+// 	pdLRisCan[6] = MIN7;
+// 	pdLRisCan[7] = MIN8;
+// 	pdLRisCan[8] = MIN9;
+// 	pdLRisCan[9] = MIN10;
+
+// 	pdLRisnotCan[0] = MIN10;
+// 	pdLRisnotCan[1] = MIN9;
+// 	pdLRisnotCan[2] = MIN8;
+// 	pdLRisnotCan[3] = MIN7;
+// 	pdLRisnotCan[4] = MIN6;
+// 	pdLRisnotCan[5] = MIN5;
+// 	pdLRisnotCan[6] = MIN4;
+// 	pdLRisnotCan[7] = 0; 
+// 	pdLRisnotCan[8] = 0; 
+// 	pdLRisnotCan[9] = 0; 
+
+
+// }
+
+
+void QTable::assignPDLRCertainity()
+{
+
+	double e = (double)episodeNumber/ceiling;
+
+	//max - (1-e)*(max-min);
+	
+	pdLRisCan[0] = 0;
+	pdLRisCan[1] = 0;
+	pdLRisCan[2] = 0;
+	pdLRisCan[3] = max4 - (1-e)*(max4-min4);
+	pdLRisCan[4] = max5 - (1-e)*(max5-min5);
+	pdLRisCan[5] = max6 - (1-e)*(max6-min6);
+	pdLRisCan[6] = max7 - (1-e)*(max7-min7);
+	pdLRisCan[7] = max8 - (1-e)*(max8-min8);
+	pdLRisCan[8] = max9 - (1-e)*(max9-min9);
+	pdLRisCan[9] = max10 - (1-e)*(max10-min10);
+
+	pdLRisnotCan[0] = max10 - (1-e)*(max10-min10);
+	pdLRisnotCan[1] = max9 - (1-e)*(max9-min9); 
+	pdLRisnotCan[2] = max8 - (1-e)*(max8-min8);
+	pdLRisnotCan[3] = max7 - (1-e)*(max7-min7);
+	pdLRisnotCan[4] = max6 - (1-e)*(max6-min6);
+	pdLRisnotCan[5] = max5 - (1-e)*(max5-min5);
+	pdLRisnotCan[6] = max4 - (1-e)*(max4-min4);
+	pdLRisnotCan[7] = 0; 
+	pdLRisnotCan[8] = 0; 
+	pdLRisnotCan[9] = 0; 
+
+
+}
+
 
 void QTable::newEpisode()
 {
@@ -97,6 +197,10 @@ void QTable::newEpisode()
 	{
 		srand(episodeNumber + time(NULL));
 		averageReward = 0;
+
+		//probability distribution function of episodes
+		//assignPDLRCertainity();
+
 		//clear the grid from cans
 		clearGrid();
 
@@ -263,7 +367,7 @@ void QTable::displayTraversal(int currentState,int currentCertainity, int action
 void QTable::scatterRandomCans()
 {
 	int tempRandom=0;
-	for(int i=0;i<0.1*numberOfCells;i++)
+	for(int i=0;i<(canDensity*numberOfCells);i++)
 	{
 		tempRandom =Utility::getRandom(numberOfCells); 
 		
@@ -379,7 +483,7 @@ int QTable::getReward(int cellNo,int currentCertainity, int action)
 	}
 	else if(action==4)//ask
 	{
-		return -4;
+		return -3;
 	}
 
 	

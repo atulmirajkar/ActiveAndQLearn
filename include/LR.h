@@ -1,3 +1,6 @@
+#ifndef ACTIVE_AND_QLEARN_LR_H
+#define ACTIVE_AND_QLEARN_LR_H
+
 #include<iostream>
 #include<fstream>
 #include<string>
@@ -5,6 +8,17 @@
 #include<stdio.h>
 #include<stdint.h>
 #include <cstring>
+#include "Utility.h"
+#include <stdio.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <errno.h>
+#include "linear.h"
+#define Malloc(type,n) (type *)malloc((n)*sizeof(type))
+#define INF HUGE_VAL
+
 using namespace std;
 
 #define TRAIN_LABEL_FILE "trainLabelFile"
@@ -19,26 +33,55 @@ using namespace std;
 #define TRAIN_PHASE "train"
 #define TEST_PHASE "test"
 #define TEST_OUTPUT_FILE "testOutputFile"
+
 class LRWrapper{
-string lrConfigFile;
-string trainLabelFile;
-string trainImageFile;
-string testLabelFile;
-string testImageFile;
-string trainingSetFile;
-string testSetFile;
-string modelFile;
-string trainOptions;
-string testOptions;
-string testOutputFile;
+	string trainLabelFile;
+	string trainImageFile;
+	string testLabelFile;
+	string testImageFile;
+	string trainingSetFile;
+	string testSetFile;
+	string modelFile;
+	string trainOptions;
+	string testOptions;
+	string testOutputFile;
+
+
+	struct model* model_;
+//train
+	struct feature_node *x_space;
+	struct parameter param;
+	struct problem prob;
+//test
+	struct feature_node *x;
+
+	int flag_cross_validation;
+	int nr_fold;
+	double bias;
+
 public:
+	string lrConfigFile;
+	LRWrapper()
+	{
+
+	}
 	LRWrapper(string & );
-	void readMNISTData();
+	void readMNISTData(string & wholeTrainFile);
 	void LRTrain();
 	void LRTest();
 	void readLRConfig();
 	char ** argvCreator(int * argvCount, const char *);
-	       
+
+	void parse_command_line(int argc, char **argv, char *input_file_name, char *model_file_name);
+	void read_problem(const char *filename);
+	void do_cross_validation();
+	void do_predict(FILE *input, FILE *output);
+	double predictProbabiltiyWrapper(struct feature_node * x,int choiceValue);
+
+
+
+       
 
 };
 
+#endif

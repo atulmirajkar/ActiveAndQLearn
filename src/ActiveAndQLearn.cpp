@@ -1,41 +1,168 @@
-
-
-
 #include "ActiveAndQLearn.h"
 #include"Utility.h"
 #include "Test.h"
 #include "LR.h"
+#include <errno.h>
+
 ofstream myLog;
+#define Malloc(type,n) (type *)malloc((n)*sizeof(type))
 
 int main()
 {
 
 	myLog.open("bin/log");
 	QTable qTable;
-	try{
-		qTable.readConfig("src/config");
-	
-	//Test::testAnneal(qTable);
-	
-	Test::isLittleBigEndian();
-	LRWrapper lr(qTable.lrConfigPath);
-	lr.readLRConfig();
-	//lr.readMNISTData();
-	//lr.LRTrain();
-	lr.LRTest();
-	//qTable.newEpisode();
+	qTable.initiate();
 	myLog.close();
+	return 0;
+}
+
+void QTable::initiate()
+{
+		try{
+		readConfig("src/config");
+
+		//Test::testAnneal(qTable);
+	
+		//Test::isLittleBigEndian();
+	        lr.lrConfigFile = lrConfigPath;
+		lr.readLRConfig();
+		lr.readMNISTData(wholeTrainingFile);
+
+		readWholeProblem();
+		createPartialTrainingData();
+	        lr.LRTrain();
+		//lr.LRTest();
+		newEpisode();
+		
 	}
 	catch(char * str)
 	{
 		cout<<str<<endl;
 		myLog<<str<<endl;
 		myLog.close();
-		return 0;
+       	}
+
+}
+// read in a problem (in libsvm format)
+void QTable::readWholeProblem()
+{
+	int max_index, inst_max_index, i;
+	long int elements, j;
+	char *endptr;
+	char *idx, *val, *label;
+
+	char *filename = (char *)(this->wholeTrainingFile).c_str(); 
+	FILE *fp = fopen(filename,"r");
+	
+	int max_line_len = 1024;
+	char * line = Malloc(char,max_line_len);
+       
+	if(fp == NULL)
+	{
+		fprintf(stderr,"can't open input file %s\n",filename);
+		exit(1);
 	}
 
-	return 0;
+
+	wholeProblem.l = 0;
+	elements = 0;
+	while((line=Utility::readline(fp))!=NULL)
+	{
+		char *p = strtok(line," \t"); // label
+
+		// features
+		while(1)
+		{
+			p = strtok(NULL," \t");
+			if(p == NULL || *p == '\n') // check '\n' as ' ' may be after the last feature
+				break;
+			elements++;
+		}
+		elements++; // for bias term
+		wholeProblem.l++;
+	}
+	rewind(fp);
+	
+	//hardcoded bias
+	wholeProblem.bias=0;
+
+	wholeProblem.y = Malloc(double,wholeProblem.l);
+	wholeProblem.x = Malloc(struct feature_node *,wholeProblem.l);
+	//declared x_space locally instead of global
+	struct feature_node *x_space;
+	x_space = Malloc(struct feature_node,elements+wholeProblem.l);
+	
+	max_index = 0;
+	j=0;
+	for(i=0;i<wholeProblem.l;i++)
+	{
+		inst_max_index = 0; // strtol gives 0 if wrong format
+		line = Utility::readline(fp);
+		wholeProblem.x[i] = &x_space[j];
+		label = strtok(line," \t\n");
+		if(label == NULL) // empty line
+			Utility::exit_input_error(i+1);
+
+		wholeProblem.y[i] = strtod(label,&endptr);
+		
+		//added to know indices of choice value - start
+		if(wholeProblem.y[i]==choiceValue)
+		{
+			positionsOfChoice.push_back(i);
+		}
+		//added to know indices of choice value - end
+
+		if(endptr == label || *endptr != '\0')
+			Utility::exit_input_error(i+1);
+
+		while(1)
+		{
+			idx = strtok(NULL,":");
+			val = strtok(NULL," \t");
+
+			if(val == NULL)
+				break;
+
+			errno = 0;
+			x_space[j].index = (int) strtol(idx,&endptr,10);
+			if(endptr == idx || errno != 0 || *endptr != '\0' || x_space[j].index <= inst_max_index)
+				Utility::exit_input_error(i+1);
+			else
+				inst_max_index = x_space[j].index;
+
+			errno = 0;
+			x_space[j].value = strtod(val,&endptr);
+			if(endptr == val || errno != 0 || (*endptr != '\0' && !isspace(*endptr)))
+				Utility::exit_input_error(i+1);
+
+			++j;
+		}
+
+		if(inst_max_index > max_index)
+			max_index = inst_max_index;
+
+		if(wholeProblem.bias >= 0)
+			x_space[j++].value = wholeProblem.bias;
+
+		x_space[j++].index = -1;
+	}
+
+	if(wholeProblem.bias >= 0)
+	{
+		wholeProblem.n=max_index+1;
+		for(i=1;i<wholeProblem.l;i++)
+			(wholeProblem.x[i]-2)->index = wholeProblem.n;
+		x_space[j-2].index = wholeProblem.n;
+	}
+	else
+		wholeProblem.n=max_index;
+
+	free(line);
+	fclose(fp);
 }
+
+
 
 void QTable::readConfig(char * configFilePath)
 {
@@ -76,7 +203,11 @@ void QTable::readConfig(char * configFilePath)
 	   configMapper.find(USEVARIABLETEMP)==configMapper.end() ||	\
 	   configMapper.find(DISPLAYTRAVERSALBOOL)==configMapper.end() ||	\
 	   configMapper.find(CANDENSITY)==configMapper.end() ||  \
-	   configMapper.find(LRCONFIG)==configMapper.end())
+	   configMapper.find(LRCONFIG)==configMapper.end() || \
+	   configMapper.find(WHOLETRAININGFILE)==configMapper.end() ||	\
+	   configMapper.find(TRAINSETFILESUBSET)==configMapper.end() || \
+	   configMapper.find(INITIALTRAININGDATACOUNT)==configMapper.end() || \
+	   configMapper.find(CHOICEVALUE)==configMapper.end())
 	{
 		myLog<<"InValid config file<<endl";
 		throw "Invalid config file";
@@ -98,31 +229,64 @@ void QTable::readConfig(char * configFilePath)
 	grid = new QState[numberOfCells];
 	nextStateCertainity = new int[numberOfCells];
 
-	min10 =  atof(configMapper[MIN10].c_str());
-	min9 = atof(configMapper[MIN9].c_str());
-	min8 = atof(configMapper[MIN8].c_str());
-	min7 = atof(configMapper[MIN7].c_str());
-	min6 = atof(configMapper[MIN6].c_str());
-	min5  = atof(configMapper[MIN5].c_str());
-	min4 = atof(configMapper[MIN4].c_str());
+	// min10 =  atof(configMapper[MIN10].c_str());
+	// min9 = atof(configMapper[MIN9].c_str());
+	// min8 = atof(configMapper[MIN8].c_str());
+	// min7 = atof(configMapper[MIN7].c_str());
+	// min6 = atof(configMapper[MIN6].c_str());
+	// min5  = atof(configMapper[MIN5].c_str());
+	// min4 = atof(configMapper[MIN4].c_str());
 
 
 
-	max10  = atof(configMapper[MAX10].c_str());
-	max9 =atof(configMapper[MAX9].c_str());
-	max8 = atof(configMapper[MAX8].c_str());
-	max7 = atof(configMapper[MAX7].c_str());
-	max6  = atof(configMapper[MAX6].c_str());
-	max5  = atof(configMapper[MAX5].c_str());
-	max4 = atof(configMapper[MAX4].c_str());
+	// max10  = atof(configMapper[MAX10].c_str());
+	// max9 =atof(configMapper[MAX9].c_str());
+	// max8 = atof(configMapper[MAX8].c_str());
+	// max7 = atof(configMapper[MAX7].c_str());
+	// max6  = atof(configMapper[MAX6].c_str());
+	// max5  = atof(configMapper[MAX5].c_str());
+	// max4 = atof(configMapper[MAX4].c_str());
 
 
 	lrConfigPath = configMapper[LRCONFIG];
-
-	assignPDLRCertainity();
+	wholeTrainingFile = configMapper[WHOLETRAININGFILE];
+	trainSetFileSubset = configMapper[TRAINSETFILESUBSET];
+	initialTrainingDataCount = atoi(configMapper[INITIALTRAININGDATACOUNT].c_str());
+	choiceValue = atoi(configMapper[CHOICEVALUE].c_str());
+	//no need
+	//assignPDLRCertainity();
 
 }
 
+void QTable::createPartialTrainingData()
+{
+	selectedData = new bool[wholeProblem.l];
+	
+	//initialize to false
+	for(int i=0;i<wholeProblem.l;i++)
+	{
+		selectedData[i] = false;
+	}
+	srand(time(NULL));
+
+	int tempIndex;
+	ofstream trainLRFormat(trainSetFileSubset.c_str());
+	
+	for(int i=0;i<initialTrainingDataCount;i++)
+	{
+		tempIndex =Utility::getRandom(wholeProblem.l);
+		selectedData[tempIndex] = true;
+		trainLRFormat<<wholeProblem.y[tempIndex];
+		
+		for(int j=0;wholeProblem.x[tempIndex][j+1].index != -1;j++)
+		{
+			trainLRFormat<<" ";
+			trainLRFormat<<wholeProblem.x[tempIndex][j].index<<":"<<wholeProblem.x[tempIndex][j].value;
+		}
+		trainLRFormat<<endl;
+	}
+	
+}
 
 // void QTable::assignPDLRCertainity(map<string,string> & configMapper)
 // {
@@ -153,37 +317,37 @@ void QTable::readConfig(char * configFilePath)
 // }
 
 
-void QTable::assignPDLRCertainity()
-{
+// void QTable::assignPDLRCertainity()
+// {
 
-	double e = (double)episodeNumber/ceiling;
+// 	double e = (double)episodeNumber/ceiling;
 
-	//max - (1-e)*(max-min);
+// 	//max - (1-e)*(max-min);
 	
-	pdLRisCan[0] = 0;
-	pdLRisCan[1] = 0;
-	pdLRisCan[2] = 0;
-	pdLRisCan[3] = max4 - (1-e)*(max4-min4);
-	pdLRisCan[4] = max5 - (1-e)*(max5-min5);
-	pdLRisCan[5] = max6 - (1-e)*(max6-min6);
-	pdLRisCan[6] = max7 - (1-e)*(max7-min7);
-	pdLRisCan[7] = max8 - (1-e)*(max8-min8);
-	pdLRisCan[8] = max9 - (1-e)*(max9-min9);
-	pdLRisCan[9] = max10 - (1-e)*(max10-min10);
+// 	pdLRisCan[0] = 0;
+// 	pdLRisCan[1] = 0;
+// 	pdLRisCan[2] = 0;
+// 	pdLRisCan[3] = max4 - (1-e)*(max4-min4);
+// 	pdLRisCan[4] = max5 - (1-e)*(max5-min5);
+// 	pdLRisCan[5] = max6 - (1-e)*(max6-min6);
+// 	pdLRisCan[6] = max7 - (1-e)*(max7-min7);
+// 	pdLRisCan[7] = max8 - (1-e)*(max8-min8);
+// 	pdLRisCan[8] = max9 - (1-e)*(max9-min9);
+// 	pdLRisCan[9] = max10 - (1-e)*(max10-min10);
 
-	pdLRisnotCan[0] = max10 - (1-e)*(max10-min10);
-	pdLRisnotCan[1] = max9 - (1-e)*(max9-min9); 
-	pdLRisnotCan[2] = max8 - (1-e)*(max8-min8);
-	pdLRisnotCan[3] = max7 - (1-e)*(max7-min7);
-	pdLRisnotCan[4] = max6 - (1-e)*(max6-min6);
-	pdLRisnotCan[5] = max5 - (1-e)*(max5-min5);
-	pdLRisnotCan[6] = max4 - (1-e)*(max4-min4);
-	pdLRisnotCan[7] = 0; 
-	pdLRisnotCan[8] = 0; 
-	pdLRisnotCan[9] = 0; 
+// 	pdLRisnotCan[0] = max10 - (1-e)*(max10-min10);
+// 	pdLRisnotCan[1] = max9 - (1-e)*(max9-min9); 
+// 	pdLRisnotCan[2] = max8 - (1-e)*(max8-min8);
+// 	pdLRisnotCan[3] = max7 - (1-e)*(max7-min7);
+// 	pdLRisnotCan[4] = max6 - (1-e)*(max6-min6);
+// 	pdLRisnotCan[5] = max5 - (1-e)*(max5-min5);
+// 	pdLRisnotCan[6] = max4 - (1-e)*(max4-min4);
+// 	pdLRisnotCan[7] = 0; 
+// 	pdLRisnotCan[8] = 0; 
+// 	pdLRisnotCan[9] = 0; 
 
 
-}
+// }
 
 
 void QTable::newEpisode()
@@ -215,7 +379,7 @@ void QTable::newEpisode()
 			//logging
 			for(int i=0;i<numberOfCells;i++)
 			{
-				myLog<<grid[i].isCan<<" "<<grid[i].certainity<<endl; 
+				myLog<<grid[i].y<<" "<<grid[i].certainity<<endl; 
 			}
 			myLog<<endl;
 		
@@ -235,11 +399,12 @@ void QTable::newEpisode()
 			averageReward +=reward;
 
 			//assigns reward and also the nextStateCertainity
+			//if action is pick up the current  x and  y values are also changed
 			int nextState = getNextState(currentCell,currentCertainity,action);
 		
 			if(displayTraversalBool)
 			{
-				displayTraversal(currentCell,currentCertainity,action,nextState,grid[nextState].certainity);
+				displayTraversal(currentCell,currentCertainity,action,nextState,grid[nextState].certainity,grid[currentCell].y,grid[nextState].y);
 	
 			}
 
@@ -329,7 +494,7 @@ void QTable::newEpisode()
 			//logging
 			for(int i=0;i<numberOfCells;i++)
 			{
-				myLog<<grid[i].isCan<<" "<<grid[i].certainity<<endl; 
+				myLog<<grid[i].y<<" "<<grid[i].certainity<<endl; 
 			}
 			myLog<<endl;
 			
@@ -341,63 +506,125 @@ void QTable::newEpisode()
 	}//repeat for next episode
 }
 
-void QTable::displayTraversal(int currentState,int currentCertainity, int action,int nextState,int nextStateCertainity)
+void QTable::displayTraversal(int currentState,int currentCertainity, int action,int nextState,int nextStateCertainity,int currentVal,int nextVal)
 {
 
 	if(action == 1)//left
 	{
-		myLog<<"Travelling from state ("<<currentState<<" "<<currentCertainity<<") taking action left - to state ("<<nextState<<" "<<nextStateCertainity<<")"<<endl; 
+		myLog<<"Travelling from state ("<<currentState<<" "<<currentVal<<" "<<currentCertainity<<") taking action left - to state ("<<nextState<<" "<<nextVal<<" "<<nextStateCertainity<<")"<<endl; 
 	}
 	else if(action==2)//right
 	{
-		myLog<<"Travelling from state ("<<currentState<<" "<<currentCertainity<<") taking action right - to state ("<<nextState<<" "<<nextStateCertainity<<")"<<endl; 
+		myLog<<"Travelling from state ("<<currentState<<" "<<currentVal<<" "<<currentCertainity<<") taking action right - to state ("<<nextState<<" "<<nextVal<<" "<<nextStateCertainity<<")"<<endl; 
 
 	}
 	else if(action==3)//pickup
 	{
-		myLog<<"Travelling from state ("<<currentState<<" "<<currentCertainity<<") taking action pickup - to state ("<<nextState<<" "<<nextStateCertainity<<")"<<endl; 
+		myLog<<"Travelling from state ("<<currentState<<" "<<"c"<<" "<<currentCertainity<<") taking action pickup - to state ("<<nextState<<" "<<nextVal<<" "<<nextStateCertainity<<")"<<endl; 
 
 	}
 	else if(action==4)//ask
 	{
-		myLog<<"Travelling from state ("<<currentState<<" "<<currentCertainity<<") taking action ask - to state ("<<nextState<<" "<<nextStateCertainity<<")"<<endl; 
+		myLog<<"Travelling from state ("<<currentState<<" "<<currentVal<<" "<<currentCertainity<<") taking action ask - to state ("<<nextState<<" "<<nextVal<<" "<<nextStateCertainity<<")"<<endl; 
 
 	}
 }
 void QTable::scatterRandomCans()
 {
+	int tempChoiceRandom=0;
 	int tempRandom=0;
+	// for(int i=0;i<(canDensity*numberOfCells);i++)
+	// {
+	// 	tempRandom =Utility::getRandom(numberOfCells); 
+		
+	// 	//logging
+	// 	// myLog<<"Random "<<tempRandom<<endl;
+	// 	//logging
+			
+	// 	if(!grid[tempRandom].isCan)
+	// 	{
+	// 		grid[tempRandom].isCan = true;
+	// 	}
+	// 	else
+	// 	{
+	// 		i--;
+	// 	}
+	       
+	// }
+
 	for(int i=0;i<(canDensity*numberOfCells);i++)
 	{
-		tempRandom =Utility::getRandom(numberOfCells); 
-		
-		//logging
-		// myLog<<"Random "<<tempRandom<<endl;
-		//logging
-			
-		if(!grid[tempRandom].isCan)
+	        tempChoiceRandom =Utility::getRandom(positionsOfChoice.size()); 
+		//check if already selected or not
+		if(selectedData[tempChoiceRandom])
 		{
-			grid[tempRandom].isCan = true;
+			i--;
+			continue;
+		}
+	        tempRandom =Utility::getRandom(numberOfCells); 
+		
+		if(grid[tempRandom].x!=NULL)
+		{
+			i--;
+			continue;
+		
+		}
+		//get indices from positionOfChoice
+		grid[tempRandom].x = wholeProblem.x[positionsOfChoice[tempChoiceRandom]];
+		grid[tempRandom].y = wholeProblem.y[positionsOfChoice[tempChoiceRandom]];
+              
+	}
+
+	//fill rest of the cells
+	for(int i=0;i<numberOfCells;i++)
+	{
+		if(grid[i].x!=NULL)
+		{
+			continue;
+		
+		}
+		
+		getRandomImageIndexWhole(&tempRandom);
+		//get indices from whole problem itself
+		grid[i].x = wholeProblem.x[tempRandom];
+		grid[i].y = wholeProblem.y[tempRandom];
+
+	}
+}
+
+void QTable::getRandomImageIndexWhole(int * tempRandom)
+{
+	while(true)
+	{
+		*tempRandom =Utility::getRandom(wholeProblem.l);
+		if(selectedData[*tempRandom])
+		{
+			continue;
 		}
 		else
 		{
-			i--;
+			//value in tempRandom is nit in selectedData
+			return;
 		}
-	       
+		
 	}
 
-	
 }
 
 void QTable::clearGrid()
 {
 	//reset cans to 0
 		
+	// for(int i=0;i<numberOfCells;i++)
+	// {
+	// 	grid[i].isCan = false;
+	// }
+
 	for(int i=0;i<numberOfCells;i++)
 	{
-		grid[i].isCan = false;
+		grid[i].x = NULL;
+		grid[i].y = -1;
 	}
-		
 }
 
 int QTable::getNextState(int currentCell,int currentCertainity,int action)
@@ -420,29 +647,48 @@ int QTable::getNextState(int currentCell,int currentCertainity,int action)
 		return currentCell+1;
 	}
 	
-	//if action is pickup goto certainity of 0
+	//if action is pickup check ground truth and set certainity
 	else if(action==3)//if pickup
 	{
-		grid[currentCell].certainity = 1;
+		// if(grid[currentCell].y==choiceValue)
+		// {
+		// 	grid[currentCell].certainity = 10;
+		// }
+		// else
+		// {
+		// 	grid[currentCell].certainity = 1;
+
+		// }
+
+		
+		//add to training set and train model
+		
+		// replace currentcell with random image
+		int tempRandom = -1;
+		getRandomImageIndexWhole(&tempRandom);
+		grid[currentCell].x = wholeProblem.x[tempRandom];
+		grid[currentCell].y = wholeProblem.y[tempRandom];
+
+		//get certainity of new current cell configuration
+		grid[currentCell].certainity = (int) (lr.predictProbabiltiyWrapper(grid[currentCell].x,choiceValue) * 10) + 1;
 
 		return currentCell;
 	}
 	
 	else if(action==4)//if ask
 	{
-		if(grid[currentCell].isCan)
+		if(grid[currentCell].y==choiceValue)
 		{
 			grid[currentCell].certainity = 10;
-
-			return currentCell;
 		}
 		else
 		{
 			grid[currentCell].certainity = 1;
 
-			return currentCell;
 		}
 
+		
+		return currentCell;
 	}
 }
 
@@ -470,9 +716,12 @@ int QTable::getReward(int cellNo,int currentCertainity, int action)
 	}
 	else if(action==3)//pickup
 	{
-		if(grid[cellNo].isCan)
+		//look at the ground truth
+
+		//if(grid[cellNo].isCan)
+		if(grid[cellNo].y==choiceValue)
 		{
-			grid[cellNo].isCan = false;
+			//grid[cellNo].isCan = false;
 			
 			return 15;
 		}
@@ -483,7 +732,7 @@ int QTable::getReward(int cellNo,int currentCertainity, int action)
 	}
 	else if(action==4)//ask
 	{
-		return -3;
+		return -4;
 	}
 
 	
@@ -675,49 +924,54 @@ void QTable::setLRCertainity()
 {
 	double random= 0;
 	double total=0;
+	// for(int i=0;i<numberOfCells;i++)
+	// {
+	// 	random = ((double)rand() / RAND_MAX);
+	// 	/*//logging
+	// 	myLog<<random<<endl;
+	// 	//logging
+	// 	*/
+	// 	if(grid[i].isCan)
+	// 	{
+	// 		total = 0;
+	// 		for(int j=9;j>=0;j--)
+	// 		{
+	// 			if(random<=pdLRisCan[j] + total)
+	// 			{
+	// 				grid[i].certainity = j+1;
+	// 				break;
+	// 			}
+	// 			else
+	// 			{
+	// 				total +=  pdLRisCan[j];
+	// 			}
+				
+	// 		}
+	// 	}
+
+	// 	else if(!grid[i].isCan)
+	// 	{
+	// 		total = 0;
+	// 		for(int j=0;j<10;j++)
+	// 		{
+	// 			if(random<=pdLRisnotCan[j]+total)
+	// 			{
+	// 				grid[i].certainity =j+1;
+	// 				break;
+	// 			}
+	// 			else
+	// 			{
+	// 				total +=pdLRisnotCan[j];
+	// 			}
+	// 		}
+	// 	}
+	// }
 	for(int i=0;i<numberOfCells;i++)
 	{
-		random = ((double)rand() / RAND_MAX);
-		/*//logging
-		myLog<<random<<endl;
-		//logging
-		*/
-		if(grid[i].isCan)
-		{
-			total = 0;
-			for(int j=9;j>=0;j--)
-			{
-				if(random<=pdLRisCan[j] + total)
-				{
-					grid[i].certainity = j+1;
-					break;
-				}
-				else
-				{
-					total +=  pdLRisCan[j];
-				}
-				
-			}
-		}
-
-		else if(!grid[i].isCan)
-		{
-			total = 0;
-			for(int j=0;j<10;j++)
-			{
-				if(random<=pdLRisnotCan[j]+total)
-				{
-					grid[i].certainity =j+1;
-					break;
-				}
-				else
-				{
-					total +=pdLRisnotCan[j];
-				}
-			}
-		}
+		cout<<"Actual Label"<<grid[i].y;
+		grid[i].certainity = (int) (lr.predictProbabiltiyWrapper(grid[i].x,choiceValue) * 10) + 1;
+		
 	}
-
 	
 }
 

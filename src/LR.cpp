@@ -1,44 +1,20 @@
 #include "LR.h"
-#include "Utility.h"
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <errno.h>
-#include "linear.h"
-#define Malloc(type,n) (type *)malloc((n)*sizeof(type))
-#define INF HUGE_VAL
 /////////////////////////////////////////common to test and train/////////////////////////////////
 
 
 
 void exit_with_help();
-static char* readline(FILE *input);
 
 
-struct model* model_;
+
 static char *line = NULL;
 static int max_line_len;
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////
-void parse_command_line(int argc, char **argv, char *input_file_name, char *model_file_name);
-void read_problem(const char *filename);
-void do_cross_validation();
-void print_null(const char *s);
-
-struct feature_node *x_space;
-struct parameter param;
-struct problem prob;
-int flag_cross_validation;
-int nr_fold;
-double bias;
-
-////////////////////////////////////test////////////////////////////////////////////////////////
+///////////////////////////////////////train/////////////////////////////////////////////////////
 void do_predict(FILE *input, FILE *output);
 int print_null_test(const char *s,...) {return 0;}
-struct feature_node *x;
+void print_null(const char *s);
 int flag_predict_probability=0;
 static int (*info)(const char *fmt,...) = &printf;
 int max_nr_attr = 64;
@@ -111,7 +87,7 @@ void LRWrapper::readLRConfig()
 }
 
 
-void LRWrapper::readMNISTData()
+void LRWrapper::readMNISTData(string & wholeTrainFile)
 {
 	ifstream imageFile(trainImageFile.c_str(), ifstream::binary);
 
@@ -156,7 +132,7 @@ void LRWrapper::readMNISTData()
 	}
 
 	//write to model input file
-	ofstream trainLRFormat(trainingSetFile.c_str());
+	ofstream trainLRFormat(wholeTrainFile.c_str());
 	uint8_t currLabel = 0;
 	uint8_t currPixel = 0;
 	map<int,double> sparseFeatures;
@@ -191,6 +167,7 @@ void LRWrapper::readMNISTData()
 		sparseFeatures.clear();
 		currLabel = 0;
 	}
+	trainLRFormat.close();
 	labelFile.close();
 	imageFile.close();
 }
@@ -221,6 +198,9 @@ void LRWrapper::LRTrain()
 	if(flag_cross_validation)
 	{
 		do_cross_validation();
+		//added to cross validation as well
+		model_=train(&prob, &param);
+	
 	}
 	else
 	{
@@ -444,33 +424,11 @@ void exit_with_help()
 	exit(1);
 }
 
-void exit_input_error(int line_num)
-{
-	fprintf(stderr,"Wrong input format at line %d\n", line_num);
-	exit(1);
-}
 
 
-static char* readline(FILE *input)
-{
-	int len;
-
-	if(fgets(line,max_line_len,input) == NULL)
-		return NULL;
-
-	while(strrchr(line,'\n') == NULL)
-	{
-		max_line_len *= 2;
-		line = (char *) realloc(line,max_line_len);
-		len = (int) strlen(line);
-		if(fgets(line+len,max_line_len-len,input) == NULL)
-			break;
-	}
-	return line;
-}
 
 
-void do_cross_validation()
+void LRWrapper::do_cross_validation()
 {
 	int i;
 	int total_correct = 0;
@@ -511,7 +469,7 @@ void do_cross_validation()
 	free(target);
 }
 
-void parse_command_line(int argc, char **argv, char *input_file_name, char *model_file_name)
+void LRWrapper::parse_command_line(int argc, char **argv, char *input_file_name, char *model_file_name)
 {
 	int i;
 	void (*print_func)(const char*) = NULL;// default printing to stdout
@@ -635,7 +593,7 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 }
 
 // read in a problem (in libsvm format)
-void read_problem(const char *filename)
+void LRWrapper::read_problem(const char *filename)
 {
 	int max_index, inst_max_index, i;
 	long int elements, j;
@@ -653,7 +611,7 @@ void read_problem(const char *filename)
 	elements = 0;
 	max_line_len = 1024;
 	line = Malloc(char,max_line_len);
-	while(readline(fp)!=NULL)
+	while((line=Utility::readline(fp))!=NULL)
 	{
 		char *p = strtok(line," \t"); // label
 
@@ -681,15 +639,15 @@ void read_problem(const char *filename)
 	for(i=0;i<prob.l;i++)
 	{
 		inst_max_index = 0; // strtol gives 0 if wrong format
-		readline(fp);
+		line=Utility::readline(fp);
 		prob.x[i] = &x_space[j];
 		label = strtok(line," \t\n");
 		if(label == NULL) // empty line
-			exit_input_error(i+1);
+			Utility::exit_input_error(i+1);
 
 		prob.y[i] = strtod(label,&endptr);
 		if(endptr == label || *endptr != '\0')
-			exit_input_error(i+1);
+			Utility::exit_input_error(i+1);
 
 		while(1)
 		{
@@ -702,14 +660,14 @@ void read_problem(const char *filename)
 			errno = 0;
 			x_space[j].index = (int) strtol(idx,&endptr,10);
 			if(endptr == idx || errno != 0 || *endptr != '\0' || x_space[j].index <= inst_max_index)
-				exit_input_error(i+1);
+				Utility::exit_input_error(i+1);
 			else
 				inst_max_index = x_space[j].index;
 
 			errno = 0;
 			x_space[j].value = strtod(val,&endptr);
 			if(endptr == val || errno != 0 || (*endptr != '\0' && !isspace(*endptr)))
-				exit_input_error(i+1);
+				Utility::exit_input_error(i+1);
 
 			++j;
 		}
@@ -737,7 +695,26 @@ void read_problem(const char *filename)
 }
 ////////////////////////////////////////test////////////////////////////////////////////////
 
-void do_predict(FILE *input, FILE *output)
+
+double LRWrapper::predictProbabiltiyWrapper(struct feature_node * x, int choiceValue)
+{
+	double *prob_estimates= (double *) malloc(model_->nr_class*sizeof(double));;
+	
+	double predict_label = predict_probability(model_,x,prob_estimates);
+	printf("%g",predict_label);
+	for(int j=0;j<model_->nr_class;j++)
+		printf(" %g",prob_estimates[j]);
+	printf("\n");
+	
+	for(int i=0;i<model_->nr_class;i++)
+	{
+		if(model_->label[i] == choiceValue)
+			return prob_estimates[i]; 
+			
+	}
+
+}
+void LRWrapper::do_predict(FILE *input, FILE *output)
 {
 	int correct = 0;
 	int total = 0;
@@ -775,7 +752,7 @@ void do_predict(FILE *input, FILE *output)
 
 	max_line_len = 1024;
 	line = (char *)malloc(max_line_len*sizeof(char));
-	while(readline(input) != NULL)
+	while(Utility::readline(input) != NULL)
 	{
 		int i = 0;
 		double target_label, predict_label;
@@ -784,11 +761,11 @@ void do_predict(FILE *input, FILE *output)
 
 		label = strtok(line," \t\n");
 		if(label == NULL) // empty line
-			exit_input_error(total+1);
+			Utility::exit_input_error(total+1);
 
 		target_label = strtod(label,&endptr);
 		if(endptr == label || *endptr != '\0')
-			exit_input_error(total+1);
+			Utility::exit_input_error(total+1);
 
 		while(1)
 		{
@@ -806,14 +783,14 @@ void do_predict(FILE *input, FILE *output)
 			errno = 0;
 			x[i].index = (int) strtol(idx,&endptr,10);
 			if(endptr == idx || errno != 0 || *endptr != '\0' || x[i].index <= inst_max_index)
-				exit_input_error(total+1);
+				Utility::exit_input_error(total+1);
 			else
 				inst_max_index = x[i].index;
 
 			errno = 0;
 			x[i].value = strtod(val,&endptr);
 			if(endptr == val || errno != 0 || (*endptr != '\0' && !isspace(*endptr)))
-				exit_input_error(total+1);
+				Utility::exit_input_error(total+1);
 
 			// feature indices larger than those in training are not used
 			if(x[i].index <= nr_feature)

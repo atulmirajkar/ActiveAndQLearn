@@ -1,3 +1,4 @@
+
 #include "ActiveAndQLearn.h"
 #include"Utility.h"
 #include "Test.h"
@@ -5,15 +6,21 @@
 #include <errno.h>
 
 ofstream myLog;
+ofstream qTableLog;
+ofstream lrProfile;
 #define Malloc(type,n) (type *)malloc((n)*sizeof(type))
 
 int main()
 {
 
+	lrProfile.open("bin/lrProfile");
 	myLog.open("bin/log");
+        qTableLog.open("bin/QTableLog");
 	QTable qTable;
 	qTable.initiate();
 	myLog.close();
+	qTableLog.close();
+	lrProfile.close();
 	return 0;
 }
 
@@ -27,11 +34,11 @@ void QTable::initiate()
 		//Test::isLittleBigEndian();
 	        lr.lrConfigFile = lrConfigPath;
 		lr.readLRConfig();
-		lr.readMNISTData(wholeTrainingFile);
+		lr.readMNISTData(wholeTrainingFile,choiceValue);
 
 		readWholeProblem();
 		createPartialTrainingData();
-	        lr.LRTrain();
+	        lr.LRTrain(true);
 		//lr.LRTest();
 		newEpisode();
 		
@@ -45,6 +52,7 @@ void QTable::initiate()
 
 }
 // read in a problem (in libsvm format)
+//hard coded bias -1
 void QTable::readWholeProblem()
 {
 	int max_index, inst_max_index, i;
@@ -85,7 +93,7 @@ void QTable::readWholeProblem()
 	rewind(fp);
 	
 	//hardcoded bias
-	wholeProblem.bias=0;
+	wholeProblem.bias= -1;
 
 	wholeProblem.y = Malloc(double,wholeProblem.l);
 	wholeProblem.x = Malloc(struct feature_node *,wholeProblem.l);
@@ -207,7 +215,9 @@ void QTable::readConfig(char * configFilePath)
 	   configMapper.find(WHOLETRAININGFILE)==configMapper.end() ||	\
 	   configMapper.find(TRAINSETFILESUBSET)==configMapper.end() || \
 	   configMapper.find(INITIALTRAININGDATACOUNT)==configMapper.end() || \
-	   configMapper.find(CHOICEVALUE)==configMapper.end())
+	   configMapper.find(CHOICEVALUE)==configMapper.end() ||\
+	   configMapper.find(HOWMANYTOSHOW)==configMapper.end() || \
+	   configMapper.find(UNTRAINEDEPISODES)==configMapper.end())
 	{
 		myLog<<"InValid config file<<endl";
 		throw "Invalid config file";
@@ -229,30 +239,14 @@ void QTable::readConfig(char * configFilePath)
 	grid = new QState[numberOfCells];
 	nextStateCertainity = new int[numberOfCells];
 
-	// min10 =  atof(configMapper[MIN10].c_str());
-	// min9 = atof(configMapper[MIN9].c_str());
-	// min8 = atof(configMapper[MIN8].c_str());
-	// min7 = atof(configMapper[MIN7].c_str());
-	// min6 = atof(configMapper[MIN6].c_str());
-	// min5  = atof(configMapper[MIN5].c_str());
-	// min4 = atof(configMapper[MIN4].c_str());
-
-
-
-	// max10  = atof(configMapper[MAX10].c_str());
-	// max9 =atof(configMapper[MAX9].c_str());
-	// max8 = atof(configMapper[MAX8].c_str());
-	// max7 = atof(configMapper[MAX7].c_str());
-	// max6  = atof(configMapper[MAX6].c_str());
-	// max5  = atof(configMapper[MAX5].c_str());
-	// max4 = atof(configMapper[MAX4].c_str());
-
 
 	lrConfigPath = configMapper[LRCONFIG];
 	wholeTrainingFile = configMapper[WHOLETRAININGFILE];
 	trainSetFileSubset = configMapper[TRAINSETFILESUBSET];
 	initialTrainingDataCount = atoi(configMapper[INITIALTRAININGDATACOUNT].c_str());
 	choiceValue = atoi(configMapper[CHOICEVALUE].c_str());
+        howManytoShow = atoi(configMapper[HOWMANYTOSHOW].c_str());
+	unTrainedEpisodes = atoi(configMapper[UNTRAINEDEPISODES].c_str());
 	//no need
 	//assignPDLRCertainity();
 
@@ -288,74 +282,12 @@ void QTable::createPartialTrainingData()
 	
 }
 
-// void QTable::assignPDLRCertainity(map<string,string> & configMapper)
-// {
-
-// 	pdLRisCan[0] = 0;
-// 	pdLRisCan[1] = 0;
-// 	pdLRisCan[2] = 0;
-// 	pdLRisCan[3] = MIN4;
-// 	pdLRisCan[4] = MIN5;
-// 	pdLRisCan[5] = MIN6;
-// 	pdLRisCan[6] = MIN7;
-// 	pdLRisCan[7] = MIN8;
-// 	pdLRisCan[8] = MIN9;
-// 	pdLRisCan[9] = MIN10;
-
-// 	pdLRisnotCan[0] = MIN10;
-// 	pdLRisnotCan[1] = MIN9;
-// 	pdLRisnotCan[2] = MIN8;
-// 	pdLRisnotCan[3] = MIN7;
-// 	pdLRisnotCan[4] = MIN6;
-// 	pdLRisnotCan[5] = MIN5;
-// 	pdLRisnotCan[6] = MIN4;
-// 	pdLRisnotCan[7] = 0; 
-// 	pdLRisnotCan[8] = 0; 
-// 	pdLRisnotCan[9] = 0; 
-
-
-// }
-
-
-// void QTable::assignPDLRCertainity()
-// {
-
-// 	double e = (double)episodeNumber/ceiling;
-
-// 	//max - (1-e)*(max-min);
-	
-// 	pdLRisCan[0] = 0;
-// 	pdLRisCan[1] = 0;
-// 	pdLRisCan[2] = 0;
-// 	pdLRisCan[3] = max4 - (1-e)*(max4-min4);
-// 	pdLRisCan[4] = max5 - (1-e)*(max5-min5);
-// 	pdLRisCan[5] = max6 - (1-e)*(max6-min6);
-// 	pdLRisCan[6] = max7 - (1-e)*(max7-min7);
-// 	pdLRisCan[7] = max8 - (1-e)*(max8-min8);
-// 	pdLRisCan[8] = max9 - (1-e)*(max9-min9);
-// 	pdLRisCan[9] = max10 - (1-e)*(max10-min10);
-
-// 	pdLRisnotCan[0] = max10 - (1-e)*(max10-min10);
-// 	pdLRisnotCan[1] = max9 - (1-e)*(max9-min9); 
-// 	pdLRisnotCan[2] = max8 - (1-e)*(max8-min8);
-// 	pdLRisnotCan[3] = max7 - (1-e)*(max7-min7);
-// 	pdLRisnotCan[4] = max6 - (1-e)*(max6-min6);
-// 	pdLRisnotCan[5] = max5 - (1-e)*(max5-min5);
-// 	pdLRisnotCan[6] = max4 - (1-e)*(max4-min4);
-// 	pdLRisnotCan[7] = 0; 
-// 	pdLRisnotCan[8] = 0; 
-// 	pdLRisnotCan[9] = 0; 
-
-
-// }
-
-
 void QTable::newEpisode()
 {
 	int averageReward = 0;
 	int tempCurrCertainity = 0;
 	int tempNextCertainity = 0;
-
+	double accuracy = 0;
 	//set 10% of cells to have cans at random
 	while(true)
 	{
@@ -462,15 +394,24 @@ void QTable::newEpisode()
 
 			numberOfSteps++;
 		}//end episode
+		
+		if(episodeNumber > unTrainedEpisodes)
+		{
+			accuracy = lr.LRTrain(false);
+		}
+	        
+		numberOfMisses = getNumberOfMissedPicks();
 		//logging
-		myLog<<episodeNumber<<"\t"<<numberOfSteps<<"\t"<<averageReward<<"\t"<<T<<endl;
+		myLog<<"Epi"<<episodeNumber<<"\t"<<numberOfSteps<<"\t"<<averageReward<<"\t"<<numberOfAsks<<"\t"<<numberOfMisses<<"\t"<<accuracy<<"\t"<<lr.prob.l<<"\t"<<lr.prob.n<<"\t"<<T<<endl;
 		// myLog<<"Number of steps "<<numberOfSteps<<endl;
 		// myLog<<"Average Reward "<<averageReward<<endl;
 		// myLog<<"Current Temperature "<<T<<endl;
 //logging
+		
+		numberOfAsks = 0;
 		numberOfSteps = 0;
 		episodeNumber++;
-		if(displayTraversalBool)
+		if(displayTraversalBool || episodeNumber%50==0)
 		{
 			displayQTable();
 		}
@@ -489,8 +430,10 @@ void QTable::newEpisode()
 
 		}
 
-		if(episodeNumber==ceiling+1)
+		if(episodeNumber>=ceiling)
 		{
+			myLog<<endl;
+			myLog<<"Episode Number "<<episodeNumber<<endl;
 			//logging
 			for(int i=0;i<numberOfCells;i++)
 			{
@@ -500,12 +443,25 @@ void QTable::newEpisode()
 			
 			//logging
 		
-			
-			break;
+			if(episodeNumber==ceiling+howManytoShow)
+	
+				break;
 		}
 	}//repeat for next episode
 }
 
+int QTable::getNumberOfMissedPicks()
+{
+	int count = 0;
+	for(int i=0;i<numberOfCells-1;i++)
+	{
+		if(grid[i].y==choiceValue)
+		{
+			count++;
+		}
+	}
+	return count;
+}
 void QTable::displayTraversal(int currentState,int currentCertainity, int action,int nextState,int nextStateCertainity,int currentVal,int nextVal)
 {
 
@@ -529,28 +485,13 @@ void QTable::displayTraversal(int currentState,int currentCertainity, int action
 
 	}
 }
+
+
+
 void QTable::scatterRandomCans()
 {
 	int tempChoiceRandom=0;
 	int tempRandom=0;
-	// for(int i=0;i<(canDensity*numberOfCells);i++)
-	// {
-	// 	tempRandom =Utility::getRandom(numberOfCells); 
-		
-	// 	//logging
-	// 	// myLog<<"Random "<<tempRandom<<endl;
-	// 	//logging
-			
-	// 	if(!grid[tempRandom].isCan)
-	// 	{
-	// 		grid[tempRandom].isCan = true;
-	// 	}
-	// 	else
-	// 	{
-	// 		i--;
-	// 	}
-	       
-	// }
 
 	for(int i=0;i<(canDensity*numberOfCells);i++)
 	{
@@ -563,22 +504,28 @@ void QTable::scatterRandomCans()
 		}
 	        tempRandom =Utility::getRandom(numberOfCells); 
 		
-		if(grid[tempRandom].x!=NULL)
+		if(grid[tempRandom].wholeProblemIndex!=-1)
 		{
 			i--;
 			continue;
 		
 		}
+	
 		//get indices from positionOfChoice
 		grid[tempRandom].x = wholeProblem.x[positionsOfChoice[tempChoiceRandom]];
 		grid[tempRandom].y = wholeProblem.y[positionsOfChoice[tempChoiceRandom]];
-              
+		
+		//added to know where in whole problem
+		
+		grid[tempRandom].wholeProblemIndex = positionsOfChoice[tempChoiceRandom];
+		
+
 	}
 
 	//fill rest of the cells
 	for(int i=0;i<numberOfCells;i++)
 	{
-		if(grid[i].x!=NULL)
+		if(grid[i].wholeProblemIndex!=-1)
 		{
 			continue;
 		
@@ -588,7 +535,9 @@ void QTable::scatterRandomCans()
 		//get indices from whole problem itself
 		grid[i].x = wholeProblem.x[tempRandom];
 		grid[i].y = wholeProblem.y[tempRandom];
-
+		
+		//added to know where in whole problem
+		grid[i].wholeProblemIndex = tempRandom;
 	}
 }
 
@@ -624,6 +573,7 @@ void QTable::clearGrid()
 	{
 		grid[i].x = NULL;
 		grid[i].y = -1;
+		grid[i].wholeProblemIndex = -1;
 	}
 }
 
@@ -650,33 +600,33 @@ int QTable::getNextState(int currentCell,int currentCertainity,int action)
 	//if action is pickup check ground truth and set certainity
 	else if(action==3)//if pickup
 	{
-		// if(grid[currentCell].y==choiceValue)
-		// {
-		// 	grid[currentCell].certainity = 10;
-		// }
-		// else
-		// {
-		// 	grid[currentCell].certainity = 1;
-
-		// }
-
 		
 		//add to training set and train model
-		
+		lr.addInstanceToTraining(grid[currentCell].wholeProblemIndex,&wholeProblem);
+
 		// replace currentcell with random image
 		int tempRandom = -1;
 		getRandomImageIndexWhole(&tempRandom);
 		grid[currentCell].x = wholeProblem.x[tempRandom];
 		grid[currentCell].y = wholeProblem.y[tempRandom];
-
+		grid[currentCell].wholeProblemIndex = tempRandom;
+		
 		//get certainity of new current cell configuration
 		grid[currentCell].certainity = (int) (lr.predictProbabiltiyWrapper(grid[currentCell].x,choiceValue) * 10) + 1;
-
+		//log
+		lrProfile<<episodeNumber<<"\t"<<grid[currentCell].y<<"\t"<<grid[currentCell].certainity<<endl;
+		//log
 		return currentCell;
 	}
 	
 	else if(action==4)//if ask
 	{
+	
+		numberOfAsks++;
+		//add to training set and train model
+		lr.addInstanceToTraining(grid[currentCell].wholeProblemIndex,&wholeProblem);
+		
+
 		if(grid[currentCell].y==choiceValue)
 		{
 			grid[currentCell].certainity = 10;
@@ -691,6 +641,8 @@ int QTable::getNextState(int currentCell,int currentCertainity,int action)
 		return currentCell;
 	}
 }
+
+
 
 int QTable::getReward(int cellNo,int currentCertainity, int action)
 {
@@ -723,16 +675,16 @@ int QTable::getReward(int cellNo,int currentCertainity, int action)
 		{
 			//grid[cellNo].isCan = false;
 			
-			return 15;
+			return 30;
 		}
 		else
 		{
-			return -15;
+			return -30;
 		}
 	}
 	else if(action==4)//ask
 	{
-		return -4;
+		return -5;
 	}
 
 	
@@ -842,50 +794,20 @@ int QTable::getAction(int cellNo,int currentCertainity)
 	
 	sort(qValueVector.begin(),qValueVector.end(),Utility::mySort);
 	
-        //logging
-	// myLog<<"sorted qValueVector"<<endl;
-	// for(int i=0;i<4;i++)
-	// {
-	// 	myLog<<qValueVector[i].first<<"\t"<<qValueVector[i].second<<endl;
-	// }
-	// myLog<<endl;
-	//logging
-
-	// //logging
-	// myLog<<"Current Temp "<<T<<endl;
-	// //logging
 	for(int i=0;i<qValueVector.size();i++)
 	{ 
 		tempNumerator = double(qValueVector[i].second - qValueVector[0].second)/double(this->T);
 		//tempNumerator = double(qValueVector[i].second)/double(this->T);
 		if(exp(tempNumerator)>=pow(2,sizeof(double)*2)-1)
 		{
-			return -1;
+			//return -1;
+			throw "QTable out of bounds exception";
 		}
 		numerator = exp(tempNumerator);
 		
 	       	actionProbVector.push_back(make_pair(qValueVector[i].first,numerator));
 		denominator += numerator; 
 	}
-	// for(int i=0;i<4;i++)
-	// {
-	  	
-	// 	tempCertainity = grid[cellNo].certainity;
-	// 	// //logging
-	// 	// myLog<<"cell No "<<"\t"<<cellNo<<endl;
-	// 	// myLog<<"certaintiy"<<"\t"<<tempCertainity<<endl;
-	// 	// myLog<<"Q Val for above "<<"\t"<<grid[cellNo].qValue[tempCertainity-1][i]<<endl;
-	// 	// myLog<<"exploitRate "<<exploitRate<<endl;
-	// 	// myLog<<"episode number "<<episodeNumber<<endl;
-	// 	//logging
-	// 	numerator = exp(double(exploitRate * episodeNumber * grid[cellNo].qValue[tempCertainity-1][i]));
-	// 	actionProbVector.push_back(make_pair(i,numerator));
-	// 	denominator += numerator; 
-	// 	//logging
-	// 	myLog<<"Numberator"<<"\t"<<numerator<<endl;
-	// 	//logging
-		
-	// }
 	
 	
 	for(int i=0;i<4;i++)
@@ -895,14 +817,31 @@ int QTable::getAction(int cellNo,int currentCertainity)
 
 	sort(actionProbVector.begin(),actionProbVector.end(), Utility::mySort);
 	
-        // //logging
-	// myLog<<"sortedVector"<<endl;
-	// for(int i=0;i<4;i++)
-	// {
-	// 	myLog<<actionProbVector[i].first<<"\t"<<actionProbVector[i].second<<endl;
-	// }
-	// myLog<<endl;
-	// //logging
+	//if actions have equal probability and ask (4) is among them return ask
+	double tempQ = actionProbVector[0].second;
+	int index = 1;
+	for(;index<4;index++)
+	{
+		if(tempQ==actionProbVector[index].second)
+		{
+			continue;
+		}
+		else
+			break;
+	}
+	
+	if(index>1)
+	{
+		for(int i=0;i<index;i++)
+		{
+			if(actionProbVector[i].first==3)
+			{
+				return 4;
+			}
+		}
+	}
+	//if actions have equal probability and ask (4) is among them return ask
+	
 	double random = ((double)rand() / RAND_MAX);
 	double total=0;
 	for(int i=0;i<4;i++)
@@ -924,52 +863,15 @@ void QTable::setLRCertainity()
 {
 	double random= 0;
 	double total=0;
-	// for(int i=0;i<numberOfCells;i++)
-	// {
-	// 	random = ((double)rand() / RAND_MAX);
-	// 	/*//logging
-	// 	myLog<<random<<endl;
-	// 	//logging
-	// 	*/
-	// 	if(grid[i].isCan)
-	// 	{
-	// 		total = 0;
-	// 		for(int j=9;j>=0;j--)
-	// 		{
-	// 			if(random<=pdLRisCan[j] + total)
-	// 			{
-	// 				grid[i].certainity = j+1;
-	// 				break;
-	// 			}
-	// 			else
-	// 			{
-	// 				total +=  pdLRisCan[j];
-	// 			}
-				
-	// 		}
-	// 	}
-
-	// 	else if(!grid[i].isCan)
-	// 	{
-	// 		total = 0;
-	// 		for(int j=0;j<10;j++)
-	// 		{
-	// 			if(random<=pdLRisnotCan[j]+total)
-	// 			{
-	// 				grid[i].certainity =j+1;
-	// 				break;
-	// 			}
-	// 			else
-	// 			{
-	// 				total +=pdLRisnotCan[j];
-	// 			}
-	// 		}
-	// 	}
-	// }
 	for(int i=0;i<numberOfCells;i++)
 	{
 		cout<<"Actual Label"<<grid[i].y;
 		grid[i].certainity = (int) (lr.predictProbabiltiyWrapper(grid[i].x,choiceValue) * 10) + 1;
+
+		//log
+		lrProfile<<episodeNumber<<"\t"<<grid[i].y<<"\t"<<grid[i].certainity<<endl;
+		//log
+
 		
 	}
 	
@@ -977,19 +879,21 @@ void QTable::setLRCertainity()
 
 void QTable::displayQTable()
 {
-	myLog<<"QTABLE"<<endl;
+        qTableLog<<"QTABLE";
+	qTableLog<<episodeNumber<<endl;
 	for(int i=0;i<numberOfCells;i++)
 	{
-		myLog<<"cell "<<i<<endl;
+	        qTableLog<<"cell"<<i<<endl;
 		for(int j=0;j<10;j++)
 		{
-			//myLog<<"cell "<<i<<" certainity "<<j<<endl;
+			qTableLog<<"cert"<<j+1<<"\t";
+		
 			for(int k=0;k<4;k++)
 			{
-				//myLog<<grid[i].qValue[grid[i].certainity][k]<<"\t";
-				myLog<<grid[i].qValue[j][k]<<"     ";
+		
+			        qTableLog<<grid[i].qValue[j][k]<<"     ";
 			}
-			myLog<<endl;
+		        qTableLog<<endl;
 		}
 	}
 }

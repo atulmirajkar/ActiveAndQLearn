@@ -87,7 +87,7 @@ void LRWrapper::readLRConfig()
 }
 
 
-void LRWrapper::readMNISTData(string & wholeTrainFile)
+void LRWrapper::readMNISTData(string & wholeTrainFile, int choiceValue)
 {
 	ifstream imageFile(trainImageFile.c_str(), ifstream::binary);
 
@@ -156,7 +156,16 @@ void LRWrapper::readMNISTData(string & wholeTrainFile)
 		
 		//write label and mpa to file
 		map<int,double>::iterator mapIter;
-	        trainLRFormat<<(int)currLabel;
+		
+		//classify as choiceVal or not choiceVal
+		if((int)currLabel==choiceValue)
+		{
+			trainLRFormat<<(int)currLabel;
+		}
+		else
+		{
+			trainLRFormat<<10;
+		}
 		for(mapIter = sparseFeatures.begin();mapIter != sparseFeatures.end();mapIter++)
 		{
 			trainLRFormat<<" ";
@@ -173,20 +182,29 @@ void LRWrapper::readMNISTData(string & wholeTrainFile)
 }
 
 
-void LRWrapper::LRTrain()
+double LRWrapper::LRTrain(bool fromFile)
 {
+	double accuracy= 0;
 	char input_file_name[1024];
 	char model_file_name[1024];
 	const char *error_msg;
-	int argC = 0;
-	char ** argv = argvCreator(&argC,TRAIN_PHASE);
-	cout<<argC<<endl;
-	for(int i=1;i<argC;i++)
+
+	//if bool fromFile false ie read from existing (modified) prob structure
+	if(fromFile)
 	{
-		cout<<argv[i];
+		int argC = 0;
+		char ** argv = argvCreator(&argC,TRAIN_PHASE);
+		cout<<argC<<endl;
+		for(int i=1;i<argC;i++)
+		{
+			cout<<argv[i];
+		}
+		parse_command_line(argC, argv, input_file_name, model_file_name);
+
+		read_problem(input_file_name);
 	}
-	parse_command_line(argC, argv, input_file_name, model_file_name);
-	read_problem(input_file_name);
+        
+	
 	error_msg = check_parameter(&prob,&param);
 
 	if(error_msg)
@@ -197,7 +215,7 @@ void LRWrapper::LRTrain()
 
 	if(flag_cross_validation)
 	{
-		do_cross_validation();
+		accuracy = do_cross_validation();
 		//added to cross validation as well
 		model_=train(&prob, &param);
 	
@@ -210,14 +228,9 @@ void LRWrapper::LRTrain()
 			fprintf(stderr,"can't save model to file %s\n",model_file_name);
 			exit(1);
 		}
-		free_and_destroy_model(&model_);
 	}
-	destroy_param(&param);
-	free(prob.y);
-	free(prob.x);
-	free(x_space);
-	free(line);
 
+	return accuracy;
 }
 
 
@@ -312,6 +325,72 @@ char ** LRWrapper::argvCreator(int * argvCount,const char * phase)
 
 	return argv;
 }
+// struct problem
+// {
+// 	int l, n;
+// 	double *y;
+// 	struct feature_node **x;
+// 	double bias;            /* < 0 if no bias term */  
+// };
+
+void LRWrapper::addInstanceToTraining(int wholeProblemIndex, struct problem * wholeProblem)
+{
+	if(wholeProblemIndex <0 || wholeProblemIndex>wholeProblem->l-1)
+	{
+	 	throw "Whole Problem Index out of range";
+	}
+	prob.l++;
+	
+	//int sparseFeatureLength = 0;
+	//wholeProblem[wholeProblemIndex].x
+	//for(int i=0;i<) 
+
+	prob.x = (struct feature_node **)realloc(prob.x, prob.l * sizeof(struct feature_node * ));
+	prob.y = (double *)realloc(prob.y, prob.l * sizeof(double));
+	prob.x[prob.l-1] = wholeProblem->x[wholeProblemIndex];
+	prob.y[prob.l-1] = wholeProblem->y[wholeProblemIndex];
+	
+	//update n values and if bias set
+	int max_index =0;
+	
+	if(prob.bias>=0)
+	{
+		
+		for(int i=0;prob.x[prob.l-1][i+1].index!=-1;i++)
+		{
+			if(prob.x[prob.l-1][i].index >max_index)
+			{
+				max_index = prob.x[prob.l-1][i].index; 
+			}
+		}
+		
+		if(prob.n<max_index+1)
+		{
+			prob.n=max_index+1;
+			for(int i=1;i<prob.l;i++)
+				(prob.x[i]-2)->index = prob.n;
+		}
+
+	}
+	else
+	{
+		for(int i=0;prob.x[prob.l-1][i].index!=-1;i++)
+		{
+			if(prob.x[prob.l-1][i].index >max_index)
+			{
+				max_index = prob.x[prob.l-1][i].index; 
+			}
+		}
+		
+		if(prob.n<max_index)
+		{
+			prob.n=max_index;
+		}
+	}
+		
+	
+	
+}
 
 void LRWrapper::LRTest()
 {
@@ -365,9 +444,7 @@ void LRWrapper::LRTest()
 
 	x = (struct feature_node *) malloc(max_nr_attr*sizeof(struct feature_node));
 	do_predict(input, output);
-	free_and_destroy_model(&model_);
-	free(line);
-	free(x);
+
 	fclose(input);
 	fclose(output);
 
@@ -428,13 +505,14 @@ void exit_with_help()
 
 
 
-void LRWrapper::do_cross_validation()
+double LRWrapper::do_cross_validation()
 {
 	int i;
 	int total_correct = 0;
 	double total_error = 0;
 	double sumv = 0, sumy = 0, sumvv = 0, sumyy = 0, sumvy = 0;
 	double *target = Malloc(double, prob.l);
+
 
 	cross_validation(&prob,&param,nr_fold,target);
 	if(param.solver_type == L2R_L2LOSS_SVR ||
@@ -457,6 +535,7 @@ void LRWrapper::do_cross_validation()
 		       ((prob.l*sumvy-sumv*sumy)*(prob.l*sumvy-sumv*sumy))/
 		       ((prob.l*sumvv-sumv*sumv)*(prob.l*sumyy-sumy*sumy))
 			);
+		return (double)total_error/prob.l;
 	}
 	else
 	{
@@ -464,6 +543,7 @@ void LRWrapper::do_cross_validation()
 			if(target[i] == prob.y[i])
 				++total_correct;
 		printf("Cross Validation Accuracy = %g%%\n",100.0*total_correct/prob.l);
+		return (double)100.0*total_correct/prob.l;
 	}
 
 	free(target);

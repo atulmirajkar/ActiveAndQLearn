@@ -5,3 +5,7 @@ data
 help docs
 liblinear-1.94
 log
+*.*
+*#*
+Presentation
+simulator

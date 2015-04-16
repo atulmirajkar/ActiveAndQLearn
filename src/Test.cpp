@@ -1,6 +1,7 @@
+
 #include "Test.h"
 
-void Test::testAnneal(QTable & qt)
+void Test::testAnneal()
 {
 	
 	for(int i=0;i<1000;i++)

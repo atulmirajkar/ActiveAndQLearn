@@ -65,20 +65,34 @@ public:
 	{
 
 	}
+	~LRWrapper()
+	{
+			destroy_param(&param);
+			free(prob.y);
+			free(prob.x);
+			free(x_space);
+			free_and_destroy_model(&model_);
+			free(x);
+	}
 	LRWrapper(string & );
-	void readMNISTData(string & wholeTrainFile);
-	void LRTrain();
+	
+	void readMNISTData(string & wholeTrainFile,int );
+	void readMNISTData(string & wholeTrainFile,int ,int,int);
+		
+	double LRTrain(bool);
 	void LRTest();
 	void readLRConfig();
 	char ** argvCreator(int * argvCount, const char *);
 
 	void parse_command_line(int argc, char **argv, char *input_file_name, char *model_file_name);
 	void read_problem(const char *filename);
-	void do_cross_validation();
+        double do_cross_validation();
 	void do_predict(FILE *input, FILE *output);
 	double predictProbabiltiyWrapper(struct feature_node * x,int choiceValue);
+	void addInstanceToTraining(int wholeProblemIndex, struct problem * wholeProblem);
 
-
+	friend class QTable;
+	friend class QTableDrive;
 
        
 

@@ -1,0 +1,5 @@
+make -C liblinear-1.94
+make[1]: Entering directory `/home/atul/UMBC/Spring 2015/thesis_car/ActiveAndQLearn/liblinear-1.94'
+make[1]: Nothing to be done for `all'.
+make[1]: Leaving directory `/home/atul/UMBC/Spring 2015/thesis_car/ActiveAndQLearn/liblinear-1.94'
+g++ -g -Wall -I include -I liblinear-1.94 -c -o build/ActiveAndQLearn.o src/ActiveAndQLearn.cpp

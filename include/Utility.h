@@ -21,6 +21,8 @@ public:
 	static bool isStringNumber(const std::string inputString);
 	static void toUpper(string & inputString);
 	static int toLittleEndian(int data);
+	static bool mySort_first(std::pair<double,int> prob1,std::pair<double,int> prob2);
+
 };
 
 #endif

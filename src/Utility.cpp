@@ -39,6 +39,11 @@ bool Utility::mySort(std::pair<int,double> prob1,std::pair<int,double> prob2)
 	return prob1.second > prob2.second;
 }
 
+bool Utility::mySort_first(std::pair<double,int> prob1,std::pair<double,int> prob2)
+{
+	return prob1.first > prob2.first;
+}
+
 
 string Utility::trim(string &s)
 {

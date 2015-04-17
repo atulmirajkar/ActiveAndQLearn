@@ -87,7 +87,7 @@ private:
 	vector<int> otherCarIndexes;
 	vector<int> restIndexes;
      	Simulation simulation;
-
+	
 public:
 
 

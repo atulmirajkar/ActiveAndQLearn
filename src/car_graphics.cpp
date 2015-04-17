@@ -4,8 +4,8 @@
 Menu::Menu()
 {
 	this->pauseButtonImage = "pausebutton.png";
-	this->carButtonImage = "carbutton.png";
-	this->eggButtonImage = "eggbutton.png";
+	this->carButtonImage = "stepbutton.png";
+	this->eggButtonImage = "resumebutton.png";
 
 }
 
@@ -69,12 +69,15 @@ void DrawableSprite::setPosition(int x, int y)
 Simulation::Simulation()
 {
 	this->window_h = 400;
-	this->window_w = 640;
+	this->window_w = 1000;
 	this->roadImage = "car_path.png";
 	this->myCarImage = "my_car.png";
 	this->otherCarImage = "other_car.png";
 	this->eggImage = "egg.png";
 	
+	textSize = 20;
+	currTextPosX = 300;
+	currTextPosY = 25;
 }
 
 
@@ -162,14 +165,18 @@ void Simulation::pollEvent(sf::Event event)
 						if(i==0)
 						{
 							cout<<"pause"<<endl;
+							pauseWindow = true;
 						}
 						else if(i==1)
 						{
-							cout<<"car"<<endl;
+							cout<<"step"<<endl;
+							stepWindow = true;
 						}
 						else if(i==2)
 						{
-							cout<<"egg"<<endl;
+							cout<<"resume"<<endl;
+							pauseWindow = false;
+
 						}
 					}
 						
@@ -199,7 +206,7 @@ void Simulation::drawCurrentView()
 	}
 		
 	menuDSprites.draw(window);
-
+        displayInfoText(window);
 	window.display();
 
 }
@@ -215,7 +222,33 @@ void Simulation::updateCurrentView()
         
 	myCarDSprite.setPosition(myCarDSprite.x_pos,myCarDSprite.y_pos);
 
+	//clear text
+	infoTextVec.clear();
 		
+}
+
+void Simulation::displayInfoText(sf::RenderWindow & window)
+{
+	sf::Font font;
+ 	if(!font.loadFromFile("fonts/Ubuntu-L.ttf"))
+	{
+		cout<<"Font file not found";
+		return;
+	}
+	int xpos = currTextPosX;
+	int ypos = currTextPosY;
+	for(int i=0;i<infoTextVec.size();i++)
+	{
+		sf::Text text;
+		text.setString(infoTextVec[i].c_str());
+	        text.setPosition(xpos,ypos);
+		text.setFont(font);
+		text.setColor(sf::Color::White);
+		text.setCharacterSize(textSize);
+			
+		ypos = ypos + textSize + 5; 
+		window.draw(text);
+	}
 }
 
 void Simulation::updateWindow()
@@ -332,9 +365,43 @@ void Simulation::updateWindow()
 		//cout<<1.0f/time.asSeconds()<<endl;
 		clock.restart().asSeconds();
 	}
-
+	
 
 }
+/*
+InfoText::InfoText()
+{
+	if(!font.loadFromFile("fonts/Ubuntu-L.ttf"))
+	{
+		cout<<"Font file not found";
+		return;
+	}
+	
+	text.setFont(font);
+	text.setColor(sf::Color::White);
+	text.setCharacterSize(20);
+}
+InfoText::InfoText(string inputString)
+{
+	if(!font.loadFromFile("fonts/Ubuntu-L.ttf"))
+	{
+		cout<<"Font file not found";
+		return;
+	}
+	
+	text.setFont(font);
+	text.setColor(sf::Color::White);
+	text.setCharacterSize(20);
+	
+	text.setString(inputString);
+}
+
+void InfoText::setString(string inputString)
+{
+	text.setString(inputString);
+		
+}
+*/
 /*
 int main()
 {

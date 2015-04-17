@@ -468,6 +468,32 @@ void QTableDrive::newEpisode()
 		//for each episode
 		while(localSteps<nosInEpisode && simulation.window.isOpen())
 		{
+			//poll for events
+			sf::Event event;
+			simulation.pollEvent(event);
+		
+		
+			if(simulation.stepWindow)
+			{
+				simulation.pauseWindow = false;
+			}
+		
+			//wait until paused
+			if(simulation.pauseWindow)
+			{
+				continue;
+			}
+			
+			//if step escape the pause in above wait and again pause for the next iteration
+			if(simulation.stepWindow)
+			{
+				simulation.pauseWindow = true;
+				simulation.stepWindow = false;
+			}
+			
+			//poll for events ends
+
+
 			//curr state from previous iteration/step is next state for current iteration/step
 			if(localSteps!=0)
 			{
@@ -561,11 +587,10 @@ void QTableDrive::newEpisode()
 		
 
 	
-
-			sf::Event event;
-			simulation.pollEvent(event);
+			//display window
 			simulation.drawCurrentView();
-
+			
+			//increment y
 			simulation.updateCurrentView();
 		
 		
@@ -593,7 +618,9 @@ void QTableDrive::newEpisode()
 		}
 	        if(episodeNumber%untrainedEpisodes==0)
 		{
+			myLog<<endl;
 			displayQTable();
+			myLog<<endl;
 		}
 		if(episodeNumber==ceiling-1)
 		{
@@ -661,7 +688,13 @@ struct feature_node * QTableDrive::getImageWithCurrentView(int myCarCurrX,int ot
 
 int QTableDrive::getAction(int myCarX,int otherX, int otherY, int classLabel, int certainty)
 {
-
+	
+	//display state
+	std::stringstream ss;
+	ss<<"State: "<<myCarX<<"\t"<<otherX<<"\t"<<otherY<<"\t"<<classLabel<<"\t"<<certainty;
+	simulation.infoTextVec.push_back(ss.str());
+	//display state
+	
 	//input variables define the state in QTable
 	vector< pair<int,long double> > actionProbVector;
 	vector< pair<int,long double> > qValueVector;
@@ -676,7 +709,21 @@ int QTableDrive::getAction(int myCarX,int otherX, int otherY, int classLabel, in
 		tempCertainity = certainty; 
 		qValueVector.push_back(make_pair(i,grid[myCarX][otherX][otherY][classLabel].qValue[tempCertainity-1][i]));
 	}
-	//sort in descending order
+
+	//display Qvalues
+	string qValueString("Qvalues: ");
+
+	for(int i=0;i<qValueVector.size();i++)
+	{
+		ss.str("");
+		ss<<qValueVector[i].second;
+		qValueString.append(ss.str());
+		qValueString.append("\t");
+	}
+	simulation.infoTextVec.push_back(qValueString);
+	//display Qvalues
+	
+        //sort in descending order
 	sort(qValueVector.begin(),qValueVector.end(),Utility::mySort);
 	
 
@@ -707,6 +754,19 @@ int QTableDrive::getAction(int myCarX,int otherX, int otherY, int classLabel, in
 	
 	sort(actionProbVector.begin(),actionProbVector.end(), Utility::mySort);
 
+	//display Qvalues
+	string actionValues("ActionValues: ");
+
+	for(int i=0;i<actionProbVector.size();i++)
+	{
+		ss.str("");
+		ss<<actionProbVector[i].first<<":"<<actionProbVector[i].second;
+	        actionValues.append(ss.str());
+	        actionValues.append("\t");
+	}
+	simulation.infoTextVec.push_back(actionValues);
+	//display Qvalues
+	
 	//if actions have equal probability and ask (4) is among them return ask
 	// double tempQ = actionProbVector[0].second;
 	// int index = 1;
@@ -741,6 +801,13 @@ int QTableDrive::getAction(int myCarX,int otherX, int otherY, int classLabel, in
 	{
 		if(random<=actionProbVector[i].second + total)
 		{
+			//display Action
+			string action("Action: ");
+			ss.str("");
+			ss<<actionProbVector[i].first+1;
+			action.append(ss.str());
+			simulation.infoTextVec.push_back(action);
+			//display Action
 			return actionProbVector[i].first+1;
 		}
 		else
@@ -779,15 +846,32 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 	if(simulation.myCarDSprite.sprite.getGlobalBounds().intersects(simulation.dSpriteVec[0].sprite.getGlobalBounds()))
 	{
 		
-		cout<<"Collision";
+
 		if(simulation.dSpriteVec[0].groundTruth==OTHERCARGROUNDTRUTH)
 		{
 			*carCollisions = *carCollisions + 1;
+			
+			//display Event
+			string event("Event: Collision");
+			simulation.infoTextVec.push_back(event);
+			//display Event
+			
+			//erase
+			simulation.dSpriteVec.erase(simulation.dSpriteVec.begin()+0);
+			//erase
 			return -1000;
 		}
 		else if(simulation.dSpriteVec[0].groundTruth==EGGGROUNDTRUTH)
 		{
 			*eggsCollected = *eggsCollected + 1;
+			//display Event
+			string event("Event: Egg");
+			simulation.infoTextVec.push_back(event);
+			//display Event
+			 
+                        //erase
+			simulation.dSpriteVec.erase(simulation.dSpriteVec.begin()+0);
+			//erase
 			return 1000;
 		}
 
@@ -798,28 +882,48 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
         //if offtrack
 	if(simulation.myCarDSprite.x_pos<0)
 	{
-		cout<<"offtrack";
+		
+		//display Event
+		string event("Event: Off track");
+		simulation.infoTextVec.push_back(event);
+		//display Event
+
 		simulation.myCarDSprite.x_pos = 35;
-		return -100;
+		return -1000;
 	}
 	if(simulation.myCarDSprite.x_pos>150)
 	{
-		cout<<"offtrack";
+
+		//display Event
+		string event("Event: Off track");
+		simulation.infoTextVec.push_back(event);
+		//display Event
+
 		simulation.myCarDSprite.x_pos = 125;
-		return -100;
+		return -1000;
 	}
 
 	//if ask
 	if(action == ACTION_ASK)
 	{
+		//display Event
+		string event("Event: Ask");
+		simulation.infoTextVec.push_back(event);
+		//display Event
+			
 		return -30;
 	}
 	//if stay
-	if(action==ACTION_STAY)
-	{
-		return 0;
-	}
+	//if(action==ACTION_STAY)
+	//{
+	//	return 0;
+	//}
 	
+	//display Event
+	string event("Event: Left/Right/Stay");
+	simulation.infoTextVec.push_back(event);
+	//display Event
+			
 	return -10;
 }
 
@@ -860,7 +964,7 @@ void QTableDrive::doAction(int action, int * next_currClass,int * next_currCerta
 		//TODO:add entry to training set 
 		//if(episodeNumber>untrainedEpisodes)
 		//{
-			lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
+		lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
 			//}
 	}
 }

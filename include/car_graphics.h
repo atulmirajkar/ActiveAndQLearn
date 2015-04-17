@@ -46,7 +46,6 @@ class Menu{
 private:
 	
 	int selectedItemIndex;
-	sf::Font font;
 	DrawableSprite  menu[MAX_NUMBER_OF_MENU_ITEMS];
 	string pauseButtonImage;
 	string eggButtonImage;
@@ -63,6 +62,19 @@ public:
 	void isOtherCar();
 		
 };
+/*
+class InfoText{
+private:
+	sf::Font font;
+	sf::Text text;
+public:
+	InfoText();
+	InfoText(string);
+	void setString(string inputString);
+	friend class Simulation;
+
+};
+*/
 
 class Simulation{
 	int window_h;
@@ -95,6 +107,16 @@ class Simulation{
 
 	//step size
 	int carStepSize;
+	
+	//textsize
+	int textSize;
+	
+	vector<string> infoTextVec;
+	int currTextPosX;
+	int currTextPosY;
+	
+	bool pauseWindow;
+	bool stepWindow;
 public:
 	friend class QTableDrive;
 	Simulation();
@@ -107,6 +129,8 @@ public:
 	void drawCurrentView();
 	void updateCurrentView();
 	//DrawableSprite createRandomOtherCar(float);
+	void displayInfoText(sf::RenderWindow & window);
+
 };
 
 #endif

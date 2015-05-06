@@ -80,6 +80,18 @@ void Utility::tokenize(string str, string delimiter, vector<string> & instance)
 	instance.push_back(str);
 }
 
+void Utility::tokenize(string str, char delimiter, vector<string> & instance)
+{
+	std::size_t pos=0;
+	
+	while((pos = str.find(delimiter)) != string::npos)
+	{
+		instance.push_back(str.substr(0,pos));
+		str.erase(0,pos+1);//1 for delimiter length
+	}
+	instance.push_back(str);
+}
+
 int Utility::toLittleEndian(int data)
 {
 	unsigned char c1,c2,c3,c4;

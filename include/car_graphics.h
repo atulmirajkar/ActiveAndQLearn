@@ -112,6 +112,7 @@ class Simulation{
 	int textSize;
 	
 	vector<string> infoTextVec;
+	
 	int currTextPosX;
 	int currTextPosY;
 	

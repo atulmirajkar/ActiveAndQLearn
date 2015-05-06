@@ -69,6 +69,7 @@ void DrawableSprite::setPosition(int x, int y)
 Simulation::Simulation()
 {
 	this->window_h = 400;
+	//this->window_h = 200;
 	this->window_w = 1000;
 	this->roadImage = "car_path.png";
 	this->myCarImage = "my_car.png";
@@ -87,7 +88,7 @@ void Simulation::initializeWindow()
 	//set up road sprite
 	roadDSprite.setTextureAndPos(imagesFolder + "/" + roadImage,0,0);
 	//set up my car sprite
-        myCarDSprite.setTextureAndPos(imagesFolder + "/" + myCarImage,65,360);
+        myCarDSprite.setTextureAndPos(imagesFolder + "/" + myCarImage,65,window_h-40);
 
 
 	//set frame rate to 5fps
@@ -109,15 +110,21 @@ void DrawableSprite::createRandomPos()
 
 void Simulation::deleteOutOfBound(vector<DrawableSprite> &  dSpriteVec)
 {
-	for(vector<DrawableSprite>::iterator it = dSpriteVec.begin();it!=dSpriteVec.end();)
+	vector<DrawableSprite>::iterator endIt = dSpriteVec.end();
+	for(vector<DrawableSprite>::iterator it = dSpriteVec.begin();it!=endIt;)
 	{
+		//if(it->y_pos >= window_h)
+		//fix
 		if(it->y_pos >= (window_h-carStepSize))
 		{
 			it = dSpriteVec.erase(it);
+			
+			//if end is updated
+			endIt = dSpriteVec.end();
 		}
 		else
 		{
-			it++;
+			++it;
 		}
 	}
 }
@@ -222,9 +229,7 @@ void Simulation::updateCurrentView()
         
 	myCarDSprite.setPosition(myCarDSprite.x_pos,myCarDSprite.y_pos);
 
-	//clear text
-	infoTextVec.clear();
-		
+	
 }
 
 void Simulation::displayInfoText(sf::RenderWindow & window)
@@ -249,6 +254,9 @@ void Simulation::displayInfoText(sf::RenderWindow & window)
 		ypos = ypos + textSize + 5; 
 		window.draw(text);
 	}
+	//clear text
+
+	infoTextVec.clear();
 }
 
 void Simulation::updateWindow()

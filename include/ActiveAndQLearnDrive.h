@@ -22,6 +22,8 @@
 #define MAX_NUMBER_OF_DRAWABLE_ITEMS 3
 #define NO_STEPS_IN_EPISODE "nosInEpisode"
 #define UNTRAINED_EPIDODES "untrainedEpisodes"
+#define QTABLEFILE "qtableFile"
+#define READQTABLE "readQtable"
 //constants for mapping actual distances to QTable - grid indexes
 #define MAP_MYCAR_X 0
 #define MAP_OTHERCAR_X 1
@@ -38,6 +40,7 @@
 #define CLASS_OTHERCAR 0
 #define CLASS_EGG 1
 #define CLASS_REST 2
+
 
 
 using namespace std;
@@ -122,7 +125,7 @@ public:
 	int getReward(int,int * carCollisions, int * eggsCollected );
 	void doAction(int action,int *,int *,int );
 	void displayTraversal(int myCarCurrX,int otherCurrX,int otherCurrY,int currClass,int currCertainty,int currAction,int next_myCarCurrX,int next_otherCurrX,int next_otherCurrY,int next_currClass,int next_currCertainty);
-
+	void readQTableFromFile(string );
 	friend class Test;
 };	
 

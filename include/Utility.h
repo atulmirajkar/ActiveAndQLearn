@@ -22,6 +22,7 @@ public:
 	static void toUpper(string & inputString);
 	static int toLittleEndian(int data);
 	static bool mySort_first(std::pair<double,int> prob1,std::pair<double,int> prob2);
+	static void tokenize(string str, char delimiter, vector<string> & instance);
 
 };
 

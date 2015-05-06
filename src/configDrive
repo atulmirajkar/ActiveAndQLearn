@@ -1,6 +1,6 @@
 ceiling 700
-minTemp 0.02
-maxTemp 7
+minTemp 1
+maxTemp 10
 learningRate 0.2
 discountFactor 0.9
 exploitRate 0.6
@@ -10,7 +10,7 @@ displayTraversalBool 0
 lrconfig /home/atul/UMBC/thesis/src/lrconfig
 wholeTrainingFile /home/atul/UMBC/thesis/data/trainSetFile
 trainSetFileSubset /home/atul/UMBC/thesis/data/trainSetFileSubset
-initialTrainingDataCount 1500
+initialTrainingDataCount 23000
 carstepsize 10
 choicevalueothercar 4
 choicevalueegg 5
@@ -20,3 +20,5 @@ imagesFolder /home/atul/UMBC/thesis_car/ActiveAndQLearn/images
 carDensity 0.50
 nosInEpisode 500
 untrainedEpisodes 30
+qtableFile /home/atul/UMBC/thesis_car/ActiveAndQLearn/LearntQTable
+readQtable 1

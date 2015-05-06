@@ -94,7 +94,7 @@ void QTableDrive::readConfig(char * configFilePath)
 	   configMapper.find(TRAINSETFILESUBSET)==configMapper.end() || \
 	   configMapper.find(CARSTEPSIZE)==configMapper.end() ||	\
 	   configMapper.find(CHOICEVALUE_EGG)==configMapper.end() ||	\
-	   configMapper.find(CHOICEVALUE_OTHERCAR)==configMapper.end() ||	\
+	   configMapper.find(CHOICEVALUE_OTHERCAR)==configMapper.end() || \
 	   configMapper.find(CHOICEVALUE_REST)==configMapper.end() ||	\
       	   configMapper.find(WINDOWFRAMERATE)==configMapper.end() ||	\
 	   configMapper.find(IMAGES_FOLDER)==configMapper.end() ||	\
@@ -159,8 +159,99 @@ void QTableDrive::readConfig(char * configFilePath)
 	simulation.frameRate = atoi(configMapper[WINDOWFRAMERATE].c_str());
 	simulation.imagesFolder = configMapper[IMAGES_FOLDER];
 	simulation.carDensity = atof(configMapper[CAR_DENSITY].c_str());
+
+	//read QTable from file
+	
+	if(atoi(configMapper[READQTABLE].c_str())==1)
+	{
+		readQTableFromFile(configMapper[QTABLEFILE]);
+		
+		//check to see if correctly read
+		cout<<grid[4][2][39][2].qValue[5][2];
+		//variable temp set to minimum
+		T = minTemp;
+	}
 }
 
+
+//read qtable from file
+
+void QTableDrive::readQTableFromFile(string qTableFilePath)
+{
+        
+
+	ifstream qTableFile;
+	vector<string> tokenVector;
+		
+	int myCarXIndex = 0;
+	int otherXIndex = 0;
+	int otherYIndex = 0;
+	int classIndex = 0;
+	int certaintyIndex = 0;
+        qTableFile.open(qTableFilePath.c_str());
+	if(qTableFile.is_open())
+	{
+		string line="";
+		while(getline(qTableFile,line))
+		{
+			line = Utility::trim(line);
+			Utility::tokenize(line," ",tokenVector);
+			if(tokenVector.size()!=NUMBER_OF_ACTIONS)
+			{
+				myLog<<"InValid config file<<endl";
+				throw "Invalid config file";
+			}
+			
+			for(int i=0;i<NUMBER_OF_ACTIONS;i++)
+			{
+				grid[myCarXIndex][otherXIndex][otherYIndex][classIndex].qValue[certaintyIndex][i] = atof(tokenVector[i].c_str());
+			}	
+			
+			
+
+			
+			
+			certaintyIndex++;
+			if(certaintyIndex==10)
+			{
+				certaintyIndex = 0;
+				
+				classIndex++;
+				if(classIndex==NUMBER_OF_CLASSES)
+				{
+					classIndex = 0;
+
+					otherYIndex++;
+					if(otherYIndex==(DRIVE_LENGTH/carStepSize))
+					{
+						otherYIndex = 0;
+						otherXIndex++;
+						
+						if(otherXIndex==OTHER_CAR_STATES)
+						{
+							otherXIndex=0;
+							myCarXIndex++;
+							if(myCarXIndex==MY_CAR_STATES)
+							{
+								myCarXIndex=0;
+							}
+	
+						}
+					}
+					
+				}
+			
+			}
+
+
+			tokenVector.clear();
+		}
+		
+	}
+        qTableFile.close();
+	
+	
+}
 
 
 
@@ -492,7 +583,10 @@ void QTableDrive::newEpisode()
 			}
 			
 			//poll for events ends
-
+			
+                        //display window
+			simulation.drawCurrentView();
+			
 
 			//curr state from previous iteration/step is next state for current iteration/step
 			if(localSteps!=0)
@@ -505,17 +599,22 @@ void QTableDrive::newEpisode()
 				currAction = next_currAction;
 			}
 			
+			
+			
 			srand(episodeNumber + time(NULL));
 		
-			//a new view
-			if(simulation.dSpriteVec.size()==0)
+			if(localSteps==0)
 			{
-				
-				simulation.dSpriteVec.push_back(simulation.getOtherDSpriteWithPD(otherCarDSprite,eggDSprite));
+				//a new view
+				if(simulation.dSpriteVec.size()==0)
+				{
+					
+					simulation.dSpriteVec.push_back(simulation.getOtherDSpriteWithPD(otherCarDSprite,eggDSprite));
 		
-			}//end if new sprite
-
-			//added			
+				}//end if new sprite
+			}
+		
+			
 			if(localSteps!=0)
 			{
 				if(displayTraversalBool)
@@ -536,20 +635,47 @@ void QTableDrive::newEpisode()
 				//action should be currAction
 				//doAction(next_currAction,&next_currClass,& next_currCertainty,wholeProblemIndex);
 				doAction(currAction,&next_currClass,&next_currCertainty,wholeProblemIndex);
+				
+                                //simultaneously update the ys'
+				// for(int i=0;i<simulation.dSpriteVec.size();i++)
+				// {
+					
+				// 	simulation.dSpriteVec[i].y_pos +=  carStepSize;
+				// }
+				
+				//set mycar x  according to action
+				//set other x and y + carStepSize
+				//delete out of bound
+				//collisions should be recognized in the next step
+				simulation.updateCurrentView();
+			
+				//new dSprite
+				if(simulation.dSpriteVec.size()==0)
+				{
+					
+					simulation.dSpriteVec.push_back(simulation.getOtherDSpriteWithPD(otherCarDSprite,eggDSprite));
+					
+				}//end if new sprite
+			
+	
 				//get reward and reset myCar down the shoulder
 				//action should be currAction
-//int reward = getReward(next_currAction,&carCollisions, &eggsCollected);
+                                //int reward = getReward(next_currAction,&carCollisions, &eggsCollected);
 				reward = getReward(currAction,&carCollisions, &eggsCollected);
 				 
 				averageReward += reward; 
-
-			
+				
+				
+				
+				
 			}
 
-			//added
+
 			//initialize current state local variables
 			next_myCarCurrX = mapActualDistToIndex(simulation.myCarDSprite.x_pos,MAP_MYCAR_X);
 			next_otherCurrX = mapActualDistToIndex(simulation.dSpriteVec[0].x_pos,MAP_OTHERCAR_X);
+
+			//bug fixed - other was not getting deleted even with y_pos = 400
 			next_otherCurrY = mapActualDistToIndex(simulation.dSpriteVec[0].y_pos,MAP_OTHERCAR_Y);
 			
 			
@@ -581,29 +707,50 @@ void QTableDrive::newEpisode()
 			
 				double tempVal= ((1-learningRate) * grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1]) + (learningRate* (reward+discountFactor*(grid[next_myCarCurrX][next_otherCurrX][next_otherCurrY][next_currClass].qValue[next_currCertainty-1][next_currAction-1])));
 				
+				//display state
+				std::stringstream ss;
+				ss<<"Previous State "<<myCarCurrX<<"\t"<<otherCurrX<<"\t"<<otherCurrY<<"\t"<<currClass<<"\t"<<currCertainty<<"\t"<<currAction<<" QValue: "<<grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1];
+				simulation.infoTextVec.push_back(ss.str());
+				ss.str("");
+				
+				ss<<"Curr State "<<next_myCarCurrX<<"\t"<<next_otherCurrX<<"\t"<<next_otherCurrY<<"\t"<<next_currClass<<"\t"<<next_currCertainty<<"\t"<<next_currAction<<" QValue: "<<grid[next_myCarCurrX][next_otherCurrX][next_otherCurrY][next_currClass].qValue[next_currCertainty-1][next_currAction-1];
+				
+				simulation.infoTextVec.push_back(ss.str());
+				ss.str("");
+				
+				ss<<"(1-"<<learningRate<<") * "<<grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1]<<" + "<<learningRate<<"* ("<<reward<<"+"<<discountFactor<<"*("<<grid[next_myCarCurrX][next_otherCurrX][next_otherCurrY][next_currClass].qValue[next_currCertainty-1][next_currAction-1]<<"))";
+				
+				simulation.infoTextVec.push_back(ss.str());
+				ss.str("");
+				
+			
+				ss<<"Previous State QValue after action: "<<tempVal;
+				
+				simulation.infoTextVec.push_back(ss.str());
+				ss.str("");
+				
+				//display state
+				
 				grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1] =tempVal;
+
 			}
 				
 		
 
-	
-			//display window
-			simulation.drawCurrentView();
 			
-			//increment y
-			simulation.updateCurrentView();
-		
+			
+
 		
 			localSteps++;
 		}//end of episode
 		
-		//if(episodeNumber > untrainedEpisodes)
-		//{
+
+
 		accuracy = lr.LRTrain(false); 
 		
-			//}
+
 		//logging
-		myLog<<episodeNumber<<"\t"<<averageReward<<"\t"<<carCollisions<<"\t"<<eggsCollected<<"\t"<<numberOfAsks<<"\t"<<T<<"\t"<<lr.prob.l<<"\t"<<lr.prob.n<<"\t"<<accuracy<<endl;
+		myLog<<episodeNumber<<"\t"<<averageReward<<"\t"<<carCollisions<<"\t"<<eggsCollected<<"\t"<<numberOfAsks<<"\t"<<T<<"\t"<<lr.prob.l<<"\t"<<accuracy<<endl;
 	
 		//logging
 		localSteps = 0;
@@ -689,11 +836,6 @@ struct feature_node * QTableDrive::getImageWithCurrentView(int myCarCurrX,int ot
 int QTableDrive::getAction(int myCarX,int otherX, int otherY, int classLabel, int certainty)
 {
 	
-	//display state
-	std::stringstream ss;
-	ss<<"State: "<<myCarX<<"\t"<<otherX<<"\t"<<otherY<<"\t"<<classLabel<<"\t"<<certainty;
-	simulation.infoTextVec.push_back(ss.str());
-	//display state
 	
 	//input variables define the state in QTable
 	vector< pair<int,long double> > actionProbVector;
@@ -702,7 +844,13 @@ int QTableDrive::getAction(int myCarX,int otherX, int otherY, int classLabel, in
 	double denominator=0;
 	int tempCertainity =0;
 	double tempNumerator = 0;
-
+	//stringstream ss;
+	//display state
+	std::stringstream ss;
+	ss<<"State: "<<myCarX<<"\t"<<otherX<<"\t"<<otherY<<"\t"<<classLabel<<"\t"<<certainty;
+	simulation.infoTextVec.push_back(ss.str());
+	//display state
+	
 	//sort existing q -values for given cell and certainity
 	for(int i=0;i<NUMBER_OF_ACTIONS;i++)
 	{
@@ -834,7 +982,7 @@ int QTableDrive::mapActualDistToIndex(int distance,int type)
 	}
 	else if(type == MAP_OTHERCAR_Y)
 	{
-		return distance/simulation.carStepSize;
+		return distance/(simulation.carStepSize);
 	}
 	return -1;
 }
@@ -859,7 +1007,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 			//erase
 			simulation.dSpriteVec.erase(simulation.dSpriteVec.begin()+0);
 			//erase
-			return -1000;
+			return -100;
 		}
 		else if(simulation.dSpriteVec[0].groundTruth==EGGGROUNDTRUTH)
 		{
@@ -872,7 +1020,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
                         //erase
 			simulation.dSpriteVec.erase(simulation.dSpriteVec.begin()+0);
 			//erase
-			return 1000;
+			return 100;
 		}
 
 		
@@ -888,8 +1036,8 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 		simulation.infoTextVec.push_back(event);
 		//display Event
 
-		simulation.myCarDSprite.x_pos = 35;
-		return -1000;
+		simulation.myCarDSprite.x_pos = 5;
+		return -100;
 	}
 	if(simulation.myCarDSprite.x_pos>150)
 	{
@@ -900,7 +1048,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 		//display Event
 
 		simulation.myCarDSprite.x_pos = 125;
-		return -1000;
+		return -100;
 	}
 
 	//if ask
@@ -911,7 +1059,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 		simulation.infoTextVec.push_back(event);
 		//display Event
 			
-		return -30;
+		return -40;
 	}
 	//if stay
 	//if(action==ACTION_STAY)
@@ -961,12 +1109,13 @@ void QTableDrive::doAction(int action, int * next_currClass,int * next_currCerta
 			*next_currCertainty = 10;
 		}
 
-		//TODO:add entry to training set 
-		//if(episodeNumber>untrainedEpisodes)
-		//{
+
+		
+
 		lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
-			//}
+
 	}
+	
 }
 
 void QTableDrive::displayQTable()
@@ -1012,6 +1161,11 @@ void QTableDrive::displayQTable()
 
 void QTableDrive::assignVariableTemp()
 {
+	if(T==minTemp)
+	{
+		return;
+	}
+	
 	if(episodeNumber>=ceiling)
 	{
 		T = minTemp; 

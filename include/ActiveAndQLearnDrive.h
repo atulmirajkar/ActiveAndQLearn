@@ -1,6 +1,7 @@
 #ifndef ATUL_ACTIVE_AND_QLEARN_DRIVE
 #define ATUL_ACTIVE_AND_QLEARN_DRIVE
 #include<iostream>
+#include<limits>
 #include "RLStructures.h"
 #include "car_graphics.h"
 #include "sstream"
@@ -126,6 +127,9 @@ public:
 	void doAction(int action,int *,int *,int );
 	void displayTraversal(int myCarCurrX,int otherCurrX,int otherCurrY,int currClass,int currCertainty,int currAction,int next_myCarCurrX,int next_otherCurrX,int next_otherCurrY,int next_currClass,int next_currCertainty);
 	void readQTableFromFile(string );
+	void correctAction(int myCarCurrX,int otherCurrX,int next_myCarCurrX,int next_otherCurrY,int * next_currAction,int * next_currClass,int * next_currCertainty,int wholeProblemIndex,bool * isNextActionSet, int seed);
+	void correctQTable(int myCarCurrX,int otherCurrX,int otherCurrY,int currClass,int currCertainty,int currAction);
+
 	friend class Test;
 };	
 

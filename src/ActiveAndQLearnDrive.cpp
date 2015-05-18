@@ -556,6 +556,7 @@ void QTableDrive::newEpisode()
 		int accuracy =0;
 		int reward = -1;
 		int numberOfAsks = 0;
+		bool isNextActionSet = false;
 		//for each episode
 		while(localSteps<nosInEpisode && simulation.window.isOpen())
 		{
@@ -586,11 +587,23 @@ void QTableDrive::newEpisode()
 			
                         //display window
 			simulation.drawCurrentView();
-			
+
+	
 
 			//curr state from previous iteration/step is next state for current iteration/step
 			if(localSteps!=0)
 			{
+				//correction from teacher
+				if(localSteps>1)
+				{
+					//corrects action as well as next state (at this point) - class,certainty,action
+					//positions of the next state remain the same
+					//send local steps as a seed tp rand
+					correctAction(myCarCurrX,otherCurrX,next_myCarCurrX,next_otherCurrY,&next_currAction,&next_currClass,&next_currCertainty,wholeProblemIndex, &isNextActionSet,localSteps);
+				}
+				//correction from teacher
+
+			
 			        myCarCurrX=next_myCarCurrX;
 			        otherCurrX=next_otherCurrX;
 			        otherCurrY=next_otherCurrY;
@@ -667,7 +680,6 @@ void QTableDrive::newEpisode()
 				
 				
 				
-				
 			}
 
 
@@ -703,11 +715,7 @@ void QTableDrive::newEpisode()
 			//cannot convert q values for step 0 as next step is not known
 			if(localSteps!=0)
 			{
-				
-			
-				double tempVal= ((1-learningRate) * grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1]) + (learningRate* (reward+discountFactor*(grid[next_myCarCurrX][next_otherCurrX][next_otherCurrY][next_currClass].qValue[next_currCertainty-1][next_currAction-1])));
-				
-				//display state
+				/********************display state**********************/
 				std::stringstream ss;
 				ss<<"Previous State "<<myCarCurrX<<"\t"<<otherCurrX<<"\t"<<otherCurrY<<"\t"<<currClass<<"\t"<<currCertainty<<"\t"<<currAction<<" QValue: "<<grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1];
 				simulation.infoTextVec.push_back(ss.str());
@@ -717,22 +725,42 @@ void QTableDrive::newEpisode()
 				
 				simulation.infoTextVec.push_back(ss.str());
 				ss.str("");
+				/********************display state**********************/
+
+				//if action not corrected
+				if(!isNextActionSet)
+				{
+			
+					double tempVal= ((1-learningRate) * grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1]) + (learningRate* (reward+discountFactor*(grid[next_myCarCurrX][next_otherCurrX][next_otherCurrY][next_currClass].qValue[next_currCertainty-1][next_currAction-1])));
 				
-				ss<<"(1-"<<learningRate<<") * "<<grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1]<<" + "<<learningRate<<"* ("<<reward<<"+"<<discountFactor<<"*("<<grid[next_myCarCurrX][next_otherCurrX][next_otherCurrY][next_currClass].qValue[next_currCertainty-1][next_currAction-1]<<"))";
+					//***************************display state*********************************/
 				
-				simulation.infoTextVec.push_back(ss.str());
-				ss.str("");
+					ss<<"(1-"<<learningRate<<") * "<<grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1]<<" + "<<learningRate<<"* ("<<reward<<"+"<<discountFactor<<"*("<<grid[next_myCarCurrX][next_otherCurrX][next_otherCurrY][next_currClass].qValue[next_currCertainty-1][next_currAction-1]<<"))";
+				
+					simulation.infoTextVec.push_back(ss.str());
+					ss.str("");
 				
 			
-				ss<<"Previous State QValue after action: "<<tempVal;
+					ss<<"Previous State QValue after action: "<<tempVal;
 				
-				simulation.infoTextVec.push_back(ss.str());
-				ss.str("");
+					simulation.infoTextVec.push_back(ss.str());
+					ss.str("");
 				
-				//display state
+					//**************************display state end*************************/
 				
-				grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1] =tempVal;
-
+					grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1] =tempVal;
+				}
+				else
+				{
+					
+					ss<<"Action corrected : ";
+					
+					simulation.infoTextVec.push_back(ss.str());
+					ss.str("");
+				
+					correctQTable(myCarCurrX,otherCurrX,otherCurrY,currClass,currCertainty,currAction);
+					isNextActionSet = false;
+				}
 			}
 				
 		
@@ -792,8 +820,170 @@ void QTableDrive::newEpisode()
 	}
 }
 
-/*
+void QTableDrive::correctQTable(int myCarCurrX,int otherCurrX,int otherCurrY,int currClass,int currCertainty,int currAction)
+{
 
+	//grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1]
+	//1st approach find the greatest q value and set corrected action q value greater than it
+	
+	double maxQValue = -std::numeric_limits<double>::max();
+	for(int i=0;i<NUMBER_OF_ACTIONS;i++)
+	{
+		double currentQValue = grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][i];
+		if(currentQValue > maxQValue)
+		{
+			maxQValue = currentQValue; 
+		}
+	}
+	if(maxQValue == grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1])
+	{
+		return;
+	}
+	else
+	{
+		//increment corrected action qvalue by 100 of the max value
+		grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1] = maxQValue + 100;
+	}
+}
+
+
+/*
+Check myCarCurrX and otherCurrX and correct action according to next_myCarCurrX
+*/
+void QTableDrive::correctAction(int myCarCurrX,int otherCurrX,int next_myCarCurrX,int next_otherCurrY,int * next_currAction,int * next_currClass,int * next_currCertainty,int wholeProblemIndex,bool * isNextActionSet,int seed)
+{
+	//with 0.1 probability correct the action 
+	srand(seed + time(NULL));
+	double tempRand = ((double)rand() / RAND_MAX);
+	if(tempRand>double(0.2))
+	{
+		return;
+	}
+
+	//else corect the action
+	//1.if other object WAS in same lane
+	if(myCarCurrX == (otherCurrX+1))
+	{
+		//check if action is stay
+		if(myCarCurrX == next_myCarCurrX)
+		{
+			
+			if(simulation.dSpriteVec[0].groundTruth==OTHERCARGROUNDTRUTH)
+			{
+		
+				*isNextActionSet = true;
+				//probablistically go left or right
+				srand(seed + time(NULL));
+				if( ((double)rand() / RAND_MAX) > 0.5)
+				{
+					*next_currAction = ACTION_RIGHT;
+				}
+				else
+				{
+					*next_currAction = ACTION_LEFT;
+				}
+
+				//its a car in the current lane 
+				//change next state and add instance to training set 
+				*next_currClass=CLASS_OTHERCAR;
+				*next_currCertainty = 10;
+				lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
+
+				return;
+			}
+		        //its an egg in the current lane
+			
+			else{
+				*isNextActionSet = true;
+				*next_currAction = ACTION_STAY;
+				//change next state and add instance to training set 
+				*next_currClass=CLASS_EGG;
+				*next_currCertainty = 10;
+				lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
+
+				return;
+			}
+
+		}
+		//if the other object was in same lane and action not stay 
+		else
+		{
+
+			//check if it was an egg
+			if(simulation.dSpriteVec[0].groundTruth==EGGGROUNDTRUTH)
+			{
+				if((simulation.window_h - next_otherCurrY*(simulation.carStepSize)) < 2 * simulation.myCarDSprite.sprite.getGlobalBounds().height )
+				{
+					return;
+				}
+				
+				*isNextActionSet = true;
+				//go in the direction where the object is - need to check other y pos
+				if((otherCurrX+1)>next_myCarCurrX)
+				{
+					*next_currAction = ACTION_RIGHT;
+
+				}
+				else
+				{
+					*next_currAction = ACTION_LEFT;
+
+				}
+				
+				//there is nothing in  next state lane 
+				//change next state and add instance to training set 
+				*next_currClass=CLASS_REST;
+				*next_currCertainty = 10;
+				lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
+				return;
+				
+			}//end if there was an egg
+
+		}//end - if the other object was in same lane and action not stay 
+		
+		
+	}//end - there was something in current lane
+	//nothing WAS there in current lane
+	else
+	{
+		//check if action is stay
+		if(myCarCurrX == next_myCarCurrX)
+		{
+			if((simulation.window_h - next_otherCurrY*(simulation.carStepSize)) < 2 * simulation.myCarDSprite.sprite.getGlobalBounds().height )
+			{
+				return;
+			}
+
+			*isNextActionSet = true;
+			//go in the direction where the object is 
+			if((otherCurrX+1)>next_myCarCurrX)
+			{
+				*next_currAction = ACTION_RIGHT;
+			
+			}
+			else
+			{
+				*next_currAction = ACTION_LEFT;
+			
+
+			}
+			//there is nothing in  next state lane 
+			//change next state and add instance to training set 
+			
+			*next_currClass=CLASS_REST;
+			*next_currCertainty = 10;
+			lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
+			return;
+		}
+	        
+		
+	}
+	
+}
+
+
+/*
+  randomly select image for current view ie what object it sees in current lane 
 */
 struct feature_node * QTableDrive::getImageWithCurrentView(int myCarCurrX,int otherCurrX,int groundTruth, int * wholeProblemIndex)
 {
@@ -1007,7 +1197,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 			//erase
 			simulation.dSpriteVec.erase(simulation.dSpriteVec.begin()+0);
 			//erase
-			return -100;
+			return -1000;
 		}
 		else if(simulation.dSpriteVec[0].groundTruth==EGGGROUNDTRUTH)
 		{
@@ -1020,7 +1210,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
                         //erase
 			simulation.dSpriteVec.erase(simulation.dSpriteVec.begin()+0);
 			//erase
-			return 100;
+			return 1000;
 		}
 
 		
@@ -1059,7 +1249,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 		simulation.infoTextVec.push_back(event);
 		//display Event
 			
-		return -40;
+		return -50;
 	}
 	//if stay
 	//if(action==ACTION_STAY)

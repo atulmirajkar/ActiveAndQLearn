@@ -325,13 +325,7 @@ char ** LRWrapper::argvCreator(int * argvCount,const char * phase)
 
 	return argv;
 }
-// struct problem
-// {
-// 	int l, n;
-// 	double *y;
-// 	struct feature_node **x;
-// 	double bias;            /* < 0 if no bias term */  
-// };
+
 
 void LRWrapper::addInstanceToTraining(int wholeProblemIndex, struct problem * wholeProblem)
 {

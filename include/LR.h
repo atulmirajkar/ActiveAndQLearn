@@ -76,7 +76,9 @@ public:
 	}
 	LRWrapper(string & );
 	void readMNISTData(string & wholeTrainFile,int );
-        double LRTrain(bool fromFile);
+	void readMNISTData(string & wholeTrainFile,int ,int,int);
+		
+	double LRTrain(bool);
 	void LRTest();
 	void readLRConfig();
 	char ** argvCreator(int * argvCount, const char *);

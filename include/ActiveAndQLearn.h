@@ -30,6 +30,8 @@
 #define CHOICEVALUE "choiceValue"
 #define HOWMANYTOSHOW "howManytoShow"
 #define UNTRAINEDEPISODES "unTrainedEpisodes"
+#define ONLYPERCEPTION "onlyPerception"
+#define CERTAINTYBUTNOASKS "certaintyButNoAsks"
 using namespace std;
 
 class QState{
@@ -86,6 +88,8 @@ class QTable{
 	int numberOfMisses;
 	int howManytoShow;
 	int unTrainedEpisodes;
+	bool noAsks;
+	bool useOnlyClassifier;
 public:
 	struct problem wholeProblem;
 
@@ -97,6 +101,8 @@ public:
 		displayTraversalBool = false;
 		numberOfAsks = 0;
 		numberOfMisses = 0;
+		noAsks = false;
+		useOnlyClassifier = false;
 	}
 	~QTable()
 	{
@@ -125,6 +131,7 @@ public:
 	void assignVariableTemp();
 	void readConfig(char * configFilePath);
 	int getNumberOfMissedPicks();
+	void makeAdjustmentToQTable(int currentCell,int tempCurrCertainity,int action,double tempval);
 	friend class Test;
 
 };	

@@ -217,6 +217,8 @@ void QTable::readConfig(char * configFilePath)
 	   configMapper.find(INITIALTRAININGDATACOUNT)==configMapper.end() || \
 	   configMapper.find(CHOICEVALUE)==configMapper.end() ||\
 	   configMapper.find(HOWMANYTOSHOW)==configMapper.end() || \
+	   configMapper.find(ONLYPERCEPTION)==configMapper.end() ||	\
+	   configMapper.find(CERTAINTYBUTNOASKS)==configMapper.end() ||	\
 	   configMapper.find(UNTRAINEDEPISODES)==configMapper.end())
 	{
 		myLog<<"InValid config file<<endl";
@@ -247,6 +249,26 @@ void QTable::readConfig(char * configFilePath)
 	choiceValue = atoi(configMapper[CHOICEVALUE].c_str());
         howManytoShow = atoi(configMapper[HOWMANYTOSHOW].c_str());
 	unTrainedEpisodes = atoi(configMapper[UNTRAINEDEPISODES].c_str());
+	int onlyPerception = atoi(configMapper[ONLYPERCEPTION].c_str());
+	int certaintyButNoAsks = atoi(configMapper[CERTAINTYBUTNOASKS].c_str());
+	if(onlyPerception || certaintyButNoAsks)
+	{
+		noAsks = true;
+	}
+	else
+	{
+		noAsks = false;
+	}
+
+	if(onlyPerception)
+	{
+	        useOnlyClassifier = true;
+	}
+	else
+	{
+		useOnlyClassifier = false;
+	}
+	
 	//no need
 	//assignPDLRCertainity();
 
@@ -374,8 +396,15 @@ void QTable::newEpisode()
 			// //logging
 			// myLog<<"Q val assigned "<<tempVal<<endl;
 			// //logging
-			grid[currentCell].qValue[tempCurrCertainity-1][action-1] = tempVal;
-
+			if(useOnlyClassifier)
+			{
+				makeAdjustmentToQTable(currentCell,tempCurrCertainity,action,tempVal);
+			}
+			else
+			{
+				grid[currentCell].qValue[tempCurrCertainity-1][action-1] = tempVal;
+			}
+			
 		// 	//logging
 // 			myLog<<"Q val assigned "<<grid[currentCell].qValue[tempCurrCertainity][action-1]<<endl;
 // 			myLog<<"cell no "<<currentCell<<endl;
@@ -395,7 +424,7 @@ void QTable::newEpisode()
 			numberOfSteps++;
 		}//end episode
 		
-		if(episodeNumber > unTrainedEpisodes)
+		if(episodeNumber > unTrainedEpisodes && !noAsks)
 		{
 			accuracy = lr.LRTrain(false);
 		}
@@ -449,6 +478,31 @@ void QTable::newEpisode()
 		}
 	}//repeat for next episode
 }
+
+//if useOnlyClassifier
+//use the probability to decide which part of qtable to use
+//this is reducndant .... but necesary in order to make less changes
+void QTable::makeAdjustmentToQTable(int currentCell,int tempCurrCertainity,int action,double tempVal)
+{
+	if(tempCurrCertainity<=5)
+	{
+		for(int i=0;i<5;i++)
+		{
+			grid[currentCell].qValue[i][action-1] = tempVal;
+		}
+	}
+	else
+	{
+		for(int i=5;i<10;i++)
+		{
+			grid[currentCell].qValue[i][action-1] = tempVal;
+		}
+	
+	}
+
+		
+}
+
 
 int QTable::getNumberOfMissedPicks()
 {
@@ -818,25 +872,28 @@ int QTable::getAction(int cellNo,int currentCertainity)
 	sort(actionProbVector.begin(),actionProbVector.end(), Utility::mySort);
 	
 	//if actions have equal probability and ask (4) is among them return ask
-	double tempQ = actionProbVector[0].second;
-	int index = 1;
-	for(;index<4;index++)
+	if(!noAsks)
 	{
-		if(tempQ==actionProbVector[index].second)
+		double tempQ = actionProbVector[0].second;
+		int index = 1;
+		for(;index<4;index++)
 		{
-			continue;
-		}
-		else
-			break;
-	}
-	
-	if(index>1)
-	{
-		for(int i=0;i<index;i++)
-		{
-			if(actionProbVector[i].first==3)
+			if(tempQ==actionProbVector[index].second)
 			{
-				return 4;
+				continue;
+			}
+			else
+				break;
+		}
+	
+		if(index>1)
+		{
+			for(int i=0;i<index;i++)
+			{
+				if(actionProbVector[i].first==3)
+				{
+					return 4;
+				}
 			}
 		}
 	}
@@ -844,10 +901,17 @@ int QTable::getAction(int cellNo,int currentCertainity)
 	
 	double random = ((double)rand() / RAND_MAX);
 	double total=0;
-	for(int i=0;i<4;i++)
+	int i=0;
+	for(;i<4;i++)
 	{
 		if(random<=actionProbVector[i].second + total)
 		{
+			//if noAsk and action is Ask just increment total and continue
+			if(actionProbVector[i].first+1 == 4 && noAsks)
+			{
+				total +=  actionProbVector[i].second;
+				continue;
+			}
 			return actionProbVector[i].first+1;
 		}
 		else
@@ -856,6 +920,10 @@ int QTable::getAction(int cellNo,int currentCertainity)
 		}
 
 	}
+
+	//due to noAsks the for loop can finish - if ask is the last action in array
+	//eg 0.25 0.25 0.25 0.25
+	return actionProbVector[2].first+1;
 	
 }
 

@@ -11,7 +11,7 @@
 #define NUMBER_OF_ACTIONS 4
 #define MY_CAR_STATES 5
 #define OTHER_CAR_STATES 3
-#define DRIVE_LENGTH 400
+//#define DRIVE_LENGTH 250
 #define DRIVE_WIDTH 150
 #define CARSTEPSIZE "carstepsize"
 #define CHOICEVALUE_EGG "choicevalueegg"
@@ -25,6 +25,9 @@
 #define UNTRAINED_EPIDODES "untrainedEpisodes"
 #define QTABLEFILE "qtableFile"
 #define READQTABLE "readQtable"
+#define QTABLECORRECTIONMETHOD "qtableCorrectionMethod"
+#define CORRECTACTION "correctAction"
+#define WINDOWHEIGHT "windowHeight"
 //constants for mapping actual distances to QTable - grid indexes
 #define MAP_MYCAR_X 0
 #define MAP_OTHERCAR_X 1
@@ -91,13 +94,17 @@ private:
 	vector<int> otherCarIndexes;
 	vector<int> restIndexes;
      	Simulation simulation;
-	
+
+	//Qtable correction method
+	int qtableCorrectionMethod;
+	bool correctActionBool;
+	int windowHeight;
 public:
 
 
 	QTableDrive()
 	{
-		
+		correctActionBool = false;
 	}
 	~QTableDrive()
 	{

@@ -101,8 +101,10 @@ void QTableDrive::readConfig(char * configFilePath)
 	   configMapper.find(CAR_DENSITY)==configMapper.end() ||	\
 	   configMapper.find(NO_STEPS_IN_EPISODE)==configMapper.end() ||	\
 	   configMapper.find(UNTRAINED_EPIDODES)==configMapper.end() || \
-       	   configMapper.find(INITIALTRAININGDATACOUNT)==configMapper.end())
-		
+       	   configMapper.find(INITIALTRAININGDATACOUNT)==configMapper.end()  || \
+	   configMapper.find(CORRECTACTION)==configMapper.end()  ||	\
+	   configMapper.find(WINDOWHEIGHT)==configMapper.end()  ||	\
+	   configMapper.find(QTABLECORRECTIONMETHOD)==configMapper.end())
 	{
 		myLog<<"InValid config file<<endl";
 		throw "Invalid config file";
@@ -117,10 +119,13 @@ void QTableDrive::readConfig(char * configFilePath)
 	episodeNumber = atoi(configMapper[EPISODENUMBER].c_str());
         learningRate = atof(configMapper[LEARNINGRATE].c_str());
 	useVariableTempBool = atoi(configMapper[USEVARIABLETEMP].c_str());
+	//assign temperature to max temp
 	T = maxTemp;
 	displayTraversalBool = atoi(configMapper[DISPLAYTRAVERSALBOOL].c_str());
 	
 	//change to drive simulation
+        windowHeight = atoi(configMapper[WINDOWHEIGHT].c_str());
+	simulation.window_h = windowHeight;
 	carStepSize = atoi(configMapper[CARSTEPSIZE].c_str());
 	simulation.carStepSize = carStepSize;
 	grid = new QStateDrive***[MY_CAR_STATES];
@@ -131,9 +136,9 @@ void QTableDrive::readConfig(char * configFilePath)
 	
 		for(int j=0;j<OTHER_CAR_STATES;j++)
 		{
-			grid[i][j] = new QStateDrive*[DRIVE_LENGTH/carStepSize];
+			grid[i][j] = new QStateDrive*[windowHeight/carStepSize];
 			
-			for(int k=0;k<int(DRIVE_LENGTH/carStepSize);k++)
+			for(int k=0;k<int(windowHeight/carStepSize);k++)
 			{
 				grid[i][j][k] = new QStateDrive[NUMBER_OF_CLASSES];
 			        
@@ -159,7 +164,17 @@ void QTableDrive::readConfig(char * configFilePath)
 	simulation.frameRate = atoi(configMapper[WINDOWFRAMERATE].c_str());
 	simulation.imagesFolder = configMapper[IMAGES_FOLDER];
 	simulation.carDensity = atof(configMapper[CAR_DENSITY].c_str());
-
+	//qtable correction method
+        int correctAction = atoi(configMapper[CORRECTACTION].c_str());
+	if(correctAction)
+	{
+		correctActionBool = true;
+	}
+	else
+	{
+		correctActionBool = false;
+	}
+	qtableCorrectionMethod = atoi(configMapper[QTABLECORRECTIONMETHOD].c_str());
 	//read QTable from file
 	
 	if(atoi(configMapper[READQTABLE].c_str())==1)
@@ -222,7 +237,7 @@ void QTableDrive::readQTableFromFile(string qTableFilePath)
 					classIndex = 0;
 
 					otherYIndex++;
-					if(otherYIndex==(DRIVE_LENGTH/carStepSize))
+					if(otherYIndex==(windowHeight/carStepSize))
 					{
 						otherYIndex = 0;
 						otherXIndex++;
@@ -594,7 +609,7 @@ void QTableDrive::newEpisode()
 			if(localSteps!=0)
 			{
 				//correction from teacher
-				if(localSteps>1)
+				if(localSteps>1 && correctActionBool)
 				{
 					//corrects action as well as next state (at this point) - class,certainty,action
 					//positions of the next state remain the same
@@ -622,7 +637,7 @@ void QTableDrive::newEpisode()
 				if(simulation.dSpriteVec.size()==0)
 				{
 					
-					simulation.dSpriteVec.push_back(simulation.getOtherDSpriteWithPD(otherCarDSprite,eggDSprite));
+					simulation.dSpriteVec.push_back(simulation.getOtherDSpriteWithPD(otherCarDSprite,eggDSprite,localSteps));
 		
 				}//end if new sprite
 			}
@@ -666,19 +681,27 @@ void QTableDrive::newEpisode()
 				if(simulation.dSpriteVec.size()==0)
 				{
 					
-					simulation.dSpriteVec.push_back(simulation.getOtherDSpriteWithPD(otherCarDSprite,eggDSprite));
+					simulation.dSpriteVec.push_back(simulation.getOtherDSpriteWithPD(otherCarDSprite,eggDSprite,localSteps));
 					
-				}//end if new sprite
+				}
+//end if new sprite
 			
 	
 				//get reward and reset myCar down the shoulder
 				//action should be currAction
                                 //int reward = getReward(next_currAction,&carCollisions, &eggsCollected);
 				reward = getReward(currAction,&carCollisions, &eggsCollected);
-				 
+				  
 				averageReward += reward; 
 				
-				
+				//new dSprite
+				if(simulation.dSpriteVec.size()==0)
+				{
+					
+					simulation.dSpriteVec.push_back(simulation.getOtherDSpriteWithPD(otherCarDSprite,eggDSprite,localSteps));
+					
+				}//end if new sprite
+			
 				
 			}
 
@@ -753,7 +776,7 @@ void QTableDrive::newEpisode()
 				else
 				{
 					
-					ss<<"Action corrected : ";
+					ss<<"Action corrected to : "<< currAction;
 					
 					simulation.infoTextVec.push_back(ss.str());
 					ss.str("");
@@ -773,8 +796,11 @@ void QTableDrive::newEpisode()
 		}//end of episode
 		
 
-
-		accuracy = lr.LRTrain(false); 
+                                                                        
+		if(episodeNumber > untrainedEpisodes)
+		{
+			accuracy = lr.LRTrain(false); 
+		}
 		
 
 		//logging
@@ -787,11 +813,11 @@ void QTableDrive::newEpisode()
 		{
 			displayQTable();
 		}
-		if(useVariableTempBool && episodeNumber>untrainedEpisodes)
+		if(useVariableTempBool)
 		{
 			assignVariableTemp();
 		}
-	        if(episodeNumber%untrainedEpisodes==0)
+	        if(episodeNumber%untrainedEpisodes==0 && displayTraversalBool)
 		{
 			myLog<<endl;
 			displayQTable();
@@ -841,8 +867,50 @@ void QTableDrive::correctQTable(int myCarCurrX,int otherCurrX,int otherCurrY,int
 	}
 	else
 	{
-		//increment corrected action qvalue by 100 of the max value
-		grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1] = maxQValue + 100;
+		std::stringstream ss;
+		if(qtableCorrectionMethod==1)
+		{
+			//***************************display state*********************************/
+			//display Qvalues
+			string qValueString("Current Qvalues: ");
+
+			for(int i=0;i<NUMBER_OF_ACTIONS;i++)
+			{
+				ss.str("");
+				ss<<grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][i];
+				qValueString.append(ss.str());
+				qValueString.append("\t");
+			}
+			simulation.infoTextVec.push_back(qValueString);
+			ss.str("");
+	
+                        //display Qvalues 
+	
+			ss<<"Current q value :"<<grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1]<<" replaced by :"<<maxQValue+35;
+				
+			simulation.infoTextVec.push_back(ss.str());
+			ss.str("");
+			
+			
+			//**************************display state end*************************/
+					
+			//increment corrected action qvalue by 100 of the max value
+			grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1] = maxQValue + 35;
+		}else if(qtableCorrectionMethod ==2)
+		{
+			//set  all qvalues 100 less than the corrected action q value 
+			double shouldBeMaxQValue = grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1];
+			for(int i=0;i<NUMBER_OF_ACTIONS;i++)
+			{
+			
+				if(i != currAction-1)
+				{
+					grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][i] =shouldBeMaxQValue -100;
+					
+				}
+			}
+		}
+		
 	}
 }
 
@@ -872,22 +940,31 @@ void QTableDrive::correctAction(int myCarCurrX,int otherCurrX,int next_myCarCurr
 			{
 		
 				*isNextActionSet = true;
-				//probablistically go left or right
-				srand(seed + time(NULL));
-				if( ((double)rand() / RAND_MAX) > 0.5)
+				if(myCarCurrX==1)
 				{
 					*next_currAction = ACTION_RIGHT;
+						
 				}
-				else
-				{
+				else if(myCarCurrX==3){
 					*next_currAction = ACTION_LEFT;
 				}
-
+				else{
+					//probablistically go left or right
+					srand(seed + time(NULL));
+					if( ((double)rand() / RAND_MAX) > 0.5)
+					{
+						*next_currAction = ACTION_RIGHT;
+					}
+					else
+					{
+						*next_currAction = ACTION_LEFT;
+					}
+				}
 				//its a car in the current lane 
 				//change next state and add instance to training set 
 				*next_currClass=CLASS_OTHERCAR;
 				*next_currCertainty = 10;
-				lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
+				//lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
 
 				return;
 			}
@@ -899,7 +976,7 @@ void QTableDrive::correctAction(int myCarCurrX,int otherCurrX,int next_myCarCurr
 				//change next state and add instance to training set 
 				*next_currClass=CLASS_EGG;
 				*next_currCertainty = 10;
-				lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
+				//lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
 
 				return;
 			}
@@ -934,7 +1011,7 @@ void QTableDrive::correctAction(int myCarCurrX,int otherCurrX,int next_myCarCurr
 				//change next state and add instance to training set 
 				*next_currClass=CLASS_REST;
 				*next_currCertainty = 10;
-				lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
+				//lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
 				return;
 				
 			}//end if there was an egg
@@ -972,7 +1049,7 @@ void QTableDrive::correctAction(int myCarCurrX,int otherCurrX,int next_myCarCurr
 			
 			*next_currClass=CLASS_REST;
 			*next_currCertainty = 10;
-			lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
+			//lr.addInstanceToTraining(wholeProblemIndex,&wholeProblem);
 			return;
 		}
 	        
@@ -1183,7 +1260,23 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 	//if the myCar and other collide
 	if(simulation.myCarDSprite.sprite.getGlobalBounds().intersects(simulation.dSpriteVec[0].sprite.getGlobalBounds()))
 	{
-		
+		//if collision and ask is there give a negative reward
+			//if ask
+		if(action == ACTION_ASK)
+		{
+			//display Event
+			string event("Event: Ask and collision");
+			simulation.infoTextVec.push_back(event);
+			//display Event
+			
+			//erase
+			simulation.dSpriteVec.erase(simulation.dSpriteVec.begin()+0);
+			//erase
+			
+			return -100;
+			//return -700;
+		}
+
 
 		if(simulation.dSpriteVec[0].groundTruth==OTHERCARGROUNDTRUTH)
 		{
@@ -1197,7 +1290,9 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 			//erase
 			simulation.dSpriteVec.erase(simulation.dSpriteVec.begin()+0);
 			//erase
-			return -1000;
+			//return -1000;
+			return -300;
+			//return -3000;
 		}
 		else if(simulation.dSpriteVec[0].groundTruth==EGGGROUNDTRUTH)
 		{
@@ -1210,7 +1305,8 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
                         //erase
 			simulation.dSpriteVec.erase(simulation.dSpriteVec.begin()+0);
 			//erase
-			return 1000;
+			return 100;
+			//return 3000;
 		}
 
 		
@@ -1228,6 +1324,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 
 		simulation.myCarDSprite.x_pos = 5;
 		return -100;
+		//return -1000;
 	}
 	if(simulation.myCarDSprite.x_pos>150)
 	{
@@ -1239,6 +1336,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 
 		simulation.myCarDSprite.x_pos = 125;
 		return -100;
+		//return -1000;
 	}
 
 	//if ask
@@ -1249,7 +1347,9 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 		simulation.infoTextVec.push_back(event);
 		//display Event
 			
-		return -50;
+		//return -100;
+		return -40;
+		//return -700;
 	}
 	//if stay
 	//if(action==ACTION_STAY)
@@ -1263,6 +1363,7 @@ int QTableDrive::getReward(int action, int * carCollisions, int * eggsCollected)
 	//display Event
 			
 	return -10;
+	//return -200;
 }
 
 void QTableDrive::doAction(int action, int * next_currClass,int * next_currCertainty,int wholeProblemIndex)
@@ -1322,7 +1423,7 @@ void QTableDrive::displayQTable()
 		{
 
 			
-			for(int k=0;k<int(DRIVE_LENGTH/carStepSize);k++)
+			for(int k=0;k<int(windowHeight/carStepSize);k++)
 			{
 				
 				

@@ -125,7 +125,7 @@ public:
 	void initializeWindow();
 	void updateWindow();
 	void deleteOutOfBound(vector<DrawableSprite> & dSpriteVec);
-	DrawableSprite getOtherDSpriteWithPD(DrawableSprite otherCarDSprite,DrawableSprite eggDSprite);
+	DrawableSprite getOtherDSpriteWithPD(DrawableSprite otherCarDSprite,DrawableSprite eggDSprite,int seed);
 	void pollEvent(sf::Event event);
 	void drawCurrentView();
 	void updateCurrentView();

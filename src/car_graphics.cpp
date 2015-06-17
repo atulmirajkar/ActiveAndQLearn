@@ -68,8 +68,8 @@ void DrawableSprite::setPosition(int x, int y)
 
 Simulation::Simulation()
 {
-	this->window_h = 400;
-	//this->window_h = 200;
+	//this->window_h = 400;
+	//this->window_h = 250;
 	this->window_w = 1000;
 	this->roadImage = "car_path.png";
 	this->myCarImage = "my_car.png";
@@ -84,16 +84,20 @@ Simulation::Simulation()
 
 void Simulation::initializeWindow()
 {
-	window.create(sf::VideoMode(window_w, window_h), "Car Driving Simulation");
+	window.create(sf::VideoMode(window_w, 300), "Car Driving Simulation");
 	//set up road sprite
 	roadDSprite.setTextureAndPos(imagesFolder + "/" + roadImage,0,0);
 	//set up my car sprite
         myCarDSprite.setTextureAndPos(imagesFolder + "/" + myCarImage,65,window_h-40);
+	
+	//added
+        roadDSprite.sprite.setTextureRect(sf::IntRect(0, 0, 150, window_h));
+	//added
 
-
-	//set frame rate to 5fps
+	//set frame rate to 
 	window.setFramerateLimit(frameRate);
 	
+        
 	//create menus
 	menuDSprites.setMenu(imagesFolder,window_w, window_h);	
 }
@@ -129,9 +133,10 @@ void Simulation::deleteOutOfBound(vector<DrawableSprite> &  dSpriteVec)
 	}
 }
 
-DrawableSprite Simulation::getOtherDSpriteWithPD(DrawableSprite otherCarDSprite,DrawableSprite eggDSprite)
+DrawableSprite Simulation::getOtherDSpriteWithPD(DrawableSprite otherCarDSprite,DrawableSprite eggDSprite,int seed)
 {
-	  float pd = rand()%100;
+	srand(seed + time(NULL));
+	float pd = rand()%100;
 	  
 	  if(pd < (carDensity*100))
 	  {					

@@ -28,6 +28,10 @@
 #define QTABLECORRECTIONMETHOD "qtableCorrectionMethod"
 #define CORRECTACTION "correctAction"
 #define WINDOWHEIGHT "windowHeight"
+#define LEARNEDEPISODES "learnedEpisodes"
+#define ONLYPERCEPTION "onlyPerception"
+#define CERTAINTYBUTNOASKS "certaintyButNoAsks"
+
 //constants for mapping actual distances to QTable - grid indexes
 #define MAP_MYCAR_X 0
 #define MAP_OTHERCAR_X 1
@@ -99,12 +103,20 @@ private:
 	int qtableCorrectionMethod;
 	bool correctActionBool;
 	int windowHeight;
+	int learnedEpisodes;
+	bool noAsks;
+        bool useOnlyClassifier;
+
+
 public:
 
 
 	QTableDrive()
 	{
 		correctActionBool = false;
+		noAsks = false;
+                useOnlyClassifier = false;
+
 	}
 	~QTableDrive()
 	{
@@ -136,7 +148,8 @@ public:
 	void readQTableFromFile(string );
 	void correctAction(int myCarCurrX,int otherCurrX,int next_myCarCurrX,int next_otherCurrY,int * next_currAction,int * next_currClass,int * next_currCertainty,int wholeProblemIndex,bool * isNextActionSet, int seed);
 	void correctQTable(int myCarCurrX,int otherCurrX,int otherCurrY,int currClass,int currCertainty,int currAction);
-
+	
+	void makeAdjustmentToQTable(int myCarCurrX,int otherCurrX,int otherCurrY,int currClass,int currAction,int tempVal);
 	friend class Test;
 };	
 

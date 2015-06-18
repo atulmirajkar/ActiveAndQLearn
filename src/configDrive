@@ -22,6 +22,9 @@ nosInEpisode 450
 untrainedEpisodes 30
 qtableFile ./LearntQTable
 readQtable 0
-correctAction 1
+correctAction 0
 qtableCorrectionMethod 1
 windowHeight 150
+learnedEpisodes 50
+onlyPerception 1
+certaintyButNoAsks 0

@@ -104,6 +104,7 @@ void QTableDrive::readConfig(char * configFilePath)
        	   configMapper.find(INITIALTRAININGDATACOUNT)==configMapper.end()  || \
 	   configMapper.find(CORRECTACTION)==configMapper.end()  ||	\
 	   configMapper.find(WINDOWHEIGHT)==configMapper.end()  ||	\
+	   configMapper.find(LEARNEDEPISODES)==configMapper.end()  ||			\
 	   configMapper.find(QTABLECORRECTIONMETHOD)==configMapper.end())
 	{
 		myLog<<"InValid config file<<endl";
@@ -122,7 +123,28 @@ void QTableDrive::readConfig(char * configFilePath)
 	//assign temperature to max temp
 	T = maxTemp;
 	displayTraversalBool = atoi(configMapper[DISPLAYTRAVERSALBOOL].c_str());
-	
+	learnedEpisodes = atoi(configMapper[LEARNEDEPISODES].c_str());
+	int onlyPerception = atoi(configMapper[ONLYPERCEPTION].c_str());
+        int certaintyButNoAsks = atoi(configMapper[CERTAINTYBUTNOASKS].c_str());
+        if(onlyPerception || certaintyButNoAsks)
+        {
+                noAsks = true;
+        }
+        else
+        {
+                noAsks = false;
+        }
+
+        if(onlyPerception)
+        {
+                useOnlyClassifier = true;
+        }
+        else
+        {
+                useOnlyClassifier = false;
+        }
+
+
 	//change to drive simulation
         windowHeight = atoi(configMapper[WINDOWHEIGHT].c_str());
 	simulation.window_h = windowHeight;
@@ -533,7 +555,7 @@ void QTableDrive::newEpisode()
 
 	struct feature_node * currImage = NULL;
 	
-	while (episodeNumber < ceiling && simulation.window.isOpen())
+	while (episodeNumber < (ceiling + learnedEpisodes) && simulation.window.isOpen())
 	{
 		
 		//other Car sprite
@@ -770,8 +792,15 @@ void QTableDrive::newEpisode()
 					ss.str("");
 				
 					//**************************display state end*************************/
-				
-					grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1] =tempVal;
+					if(useOnlyClassifier)
+					{
+						makeAdjustmentToQTable(myCarCurrX,otherCurrX,otherCurrY,currClass,currAction,tempVal);
+					}
+					else
+					{
+						grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[currCertainty-1][currAction-1] =tempVal;
+					}
+
 				}
 				else
 				{
@@ -797,7 +826,7 @@ void QTableDrive::newEpisode()
 		
 
                                                                         
-		if(episodeNumber > untrainedEpisodes)
+		if(episodeNumber > untrainedEpisodes && !noAsks)
 		{
 			accuracy = lr.LRTrain(false); 
 		}
@@ -813,7 +842,7 @@ void QTableDrive::newEpisode()
 		{
 			displayQTable();
 		}
-		if(useVariableTempBool)
+		if(useVariableTempBool && T>=minTemp)
 		{
 			assignVariableTemp();
 		}
@@ -825,7 +854,7 @@ void QTableDrive::newEpisode()
 		}
 		if(episodeNumber==ceiling-1)
 		{
-			displayTraversalBool = true;
+			//displayTraversalBool = true;
 			myLog<<endl;
 			displayQTable();
 			myLog<<endl;
@@ -845,6 +874,15 @@ void QTableDrive::newEpisode()
 	
 	}
 }
+
+void QTableDrive::makeAdjustmentToQTable(int myCarCurrX,int otherCurrX,int otherCurrY,int currClass,int currAction,int tempVal)
+{
+	for(int i=0;i<10;i++)
+	{
+		grid[myCarCurrX][otherCurrX][otherCurrY][currClass].qValue[i][currAction-1] =tempVal;
+	}
+}
+
 
 void QTableDrive::correctQTable(int myCarCurrX,int otherCurrX,int otherCurrY,int currClass,int currCertainty,int currAction)
 {
@@ -1216,6 +1254,13 @@ int QTableDrive::getAction(int myCarX,int otherX, int otherY, int classLabel, in
 	{
 		if(random<=actionProbVector[i].second + total)
 		{
+			//if noAsk and action is Ask just increment total and continue                                                                             
+                        if(actionProbVector[i].first+1 == 4 && noAsks)
+                        {
+                                total +=  actionProbVector[i].second;
+                                continue;
+                        }
+
 			//display Action
 			string action("Action: ");
 			ss.str("");
@@ -1231,6 +1276,10 @@ int QTableDrive::getAction(int myCarX,int otherX, int otherY, int classLabel, in
 		}
 
 	}
+	
+	//due to noAsks the for loop can finish - if ask is the last action in array                                                                               
+        //eg 0.25 0.25 0.25 0.25                                                                                                                                   
+        return actionProbVector[2].first+1;
 
 	
 

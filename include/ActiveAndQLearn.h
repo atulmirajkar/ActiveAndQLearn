@@ -30,6 +30,7 @@
 #define CHOICEVALUE "choiceValue"
 #define HOWMANYTOSHOW "howManytoShow"
 #define UNTRAINEDEPISODES "unTrainedEpisodes"
+
 using namespace std;
 
 class QState{
